@@ -225,6 +225,26 @@ Resources:
       StageName: "$default"
       AutoDeploy: true
 
+  # HTTP_PROXY integration + catch-all route so the gateway actually forwards
+  # requests to the backend instead of being deployed with nothing behind it.
+  # NOTE: this covers REST only; a WebSocket API (ProtocolType: WEBSOCKET) for
+  # /ws/stream is not implemented here and would need its own API + route.
+  BackendHttpIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApiGateway
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      IntegrationUri: !Sub "${BackendApiUrl}/{proxy}"
+      PayloadFormatVersion: "1.0"
+
+  BackendProxyRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApiGateway
+      RouteKey: "ANY /{proxy+}"
+      Target: !Sub "integrations/${BackendHttpIntegration}"
+
 Outputs:
   FrontendCloudFrontURL:
     Description: Secure HTTPS URL for the 3D Digital Twin Operator Console

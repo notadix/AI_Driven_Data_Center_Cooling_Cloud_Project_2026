@@ -16,7 +16,7 @@ import logging
 import math
 import os
 import statistics
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
@@ -136,9 +136,12 @@ class DriftDetector:
         try:
             from database.timestream_client import get_timestream_client
             ts = get_timestream_client()
+            end_time = datetime.now(timezone.utc)
+            start_time = end_time - timedelta(hours=self.window_hours)
             return ts.get_telemetry_history(
                 facility_id=self.facility_id,
-                hours=self.window_hours,
+                start_time=start_time,
+                end_time=end_time,
                 limit=1000,
             )
         except Exception as e:

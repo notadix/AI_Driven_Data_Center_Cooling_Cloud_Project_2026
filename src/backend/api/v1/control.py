@@ -198,7 +198,10 @@ async def set_setpoint(
         )
 
     sim = get_simulator()
-    state = sim.get_simulator_state("DC-EAST-01", crac_id)
+    topo_entry = next((t for t in sim.topology if t["crac_id"] == crac_id), None)
+    if topo_entry is None:
+        raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
+    state = sim.get_simulator_state(topo_entry["facility_id"], crac_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
 

@@ -15,6 +15,7 @@ Implements the three TwinMaker UDQ interface methods:
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -22,6 +23,15 @@ import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger(__name__)
+
+# entity_id/property_name are interpolated directly into Timestream query
+# strings below (f-string text, not a parameterized query), so anything not
+# matching this safe identifier charset is rejected before it reaches SQL.
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _is_safe_identifier(value: str) -> bool:
+    return bool(value) and bool(_SAFE_ID_RE.match(value))
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +150,10 @@ class TwinMakerUDQConnector:
         if self.local_mode:
             return self._mock_latest(entity_id, property_name)
 
+        if not (_is_safe_identifier(entity_id) and _is_safe_identifier(property_name)):
+            logger.warning("Rejected unsafe identifier in UDQ request: entity_id=%r property_name=%r", entity_id, property_name)
+            return self._empty_response(property_name)
+
         query = (
             f"SELECT time, measure_value::double AS value "
             f"FROM \"{self.TIMESTREAM_DB}\".\"{self.TIMESTREAM_TABLE}\" "
@@ -171,6 +185,10 @@ class TwinMakerUDQConnector:
         end_time: datetime,
         max_results: int,
     ) -> Dict[str, Any]:
+        if not (_is_safe_identifier(entity_id) and _is_safe_identifier(property_name)):
+            logger.warning("Rejected unsafe identifier in UDQ history request: entity_id=%r property_name=%r", entity_id, property_name)
+            return {"propertyValues": []}
+
         start_s = start_time.strftime("%Y-%m-%d %H:%M:%S.000000000")
         end_s = end_time.strftime("%Y-%m-%d %H:%M:%S.000000000")
         query = (

@@ -11,9 +11,9 @@ Endpoints:
 
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from fastapi.responses import JSONResponse
 
 from database.timestream_client import get_timestream_client
@@ -21,6 +21,12 @@ from src.aws.iot.iot_publisher import get_simulator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# facility_id/crac_id ultimately get interpolated into Timestream query
+# strings (database/timestream_client.py builds SQL-like text via f-strings,
+# not parameterized queries), so they're constrained to a safe identifier
+# charset here at the API boundary rather than trusted as free-form input.
+_ID_PATTERN = r"^[A-Za-z0-9_-]+$"
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +66,7 @@ async def get_latest_all() -> JSONResponse:
 # ---------------------------------------------------------------------------
 
 @router.get("/latest/{facility_id}", summary="Latest telemetry for a facility")
-async def get_latest_facility(facility_id: str) -> JSONResponse:
+async def get_latest_facility(facility_id: str = Path(..., pattern=_ID_PATTERN)) -> JSONResponse:
     sim = get_simulator()
     latest = sim.get_latest_telemetry()
     records = [
@@ -83,8 +89,8 @@ async def get_latest_facility(facility_id: str) -> JSONResponse:
 
 @router.get("/history/{facility_id}", summary="Time-series telemetry history")
 async def get_history(
-    facility_id: str,
-    crac_id: Optional[str] = Query(None, description="Filter by CRAC unit ID"),
+    facility_id: str = Path(..., pattern=_ID_PATTERN),
+    crac_id: Optional[str] = Query(None, pattern=_ID_PATTERN, description="Filter by CRAC unit ID"),
     hours: int = Query(1, ge=1, le=168, description="Look-back window in hours (max 168)"),
     limit: int = Query(500, ge=1, le=5000, description="Maximum number of records"),
 ) -> JSONResponse:
@@ -118,7 +124,7 @@ async def get_history(
 # ---------------------------------------------------------------------------
 
 @router.get("/spatial/{facility_id}", summary="8×8 spatial thermal field for heatmap rendering")
-async def get_spatial(facility_id: str) -> JSONResponse:
+async def get_spatial(facility_id: str = Path(..., pattern=_ID_PATTERN)) -> JSONResponse:
     ts = get_timestream_client()
     try:
         snapshot = ts.get_spatial_snapshot()
@@ -184,7 +190,7 @@ async def get_spatial(facility_id: str) -> JSONResponse:
 
 @router.get("/analytics/{facility_id}", summary="PUE analytics and SLA violation rate")
 async def get_analytics(
-    facility_id: str,
+    facility_id: str = Path(..., pattern=_ID_PATTERN),
     hours: int = Query(1, ge=1, le=720, description="Analysis window in hours"),
 ) -> JSONResponse:
     ts = get_timestream_client()

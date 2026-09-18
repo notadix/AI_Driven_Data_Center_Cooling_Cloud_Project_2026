@@ -8,6 +8,7 @@ Dual-mode:
 
 import logging
 import os
+import re
 import time
 from collections import deque
 from datetime import datetime, timezone, timedelta
@@ -17,6 +18,18 @@ import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger(__name__)
+
+# facility_id/crac_id are interpolated directly into the query strings below
+# (f-string text, not a parameterized Timestream query) — reject anything
+# outside a safe identifier charset before it ever reaches SQL, regardless
+# of whether the caller already validated it (callers include a FastAPI
+# router with its own pattern check, but also a Lambda handler that reads
+# facility_id straight off an arbitrary event payload).
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _is_safe_identifier(value: Optional[str]) -> bool:
+    return value is not None and bool(_SAFE_ID_RE.match(value))
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +248,10 @@ class TimestreamClient:
         if self.local_mode:
             return self._store.aggregate_avg("telemetry", hours=hours, facility_id=facility_id)
 
+        if not _is_safe_identifier(facility_id):
+            logger.warning("Rejected unsafe facility_id in get_latest_pue: %r", facility_id)
+            return None
+
         query = (
             f"SELECT avg(measure_value::double) "
             f"FROM \"{self.DB_NAME}\".\"{self.TABLE_NAME}\" "
@@ -261,6 +278,10 @@ class TimestreamClient:
                     if inlet < 18.0 or inlet > 27.0:
                         violations += 1
             return violations / max(1, total)
+
+        if not _is_safe_identifier(facility_id):
+            logger.warning("Rejected unsafe facility_id in get_sla_violation_rate: %r", facility_id)
+            return 0.0
 
         query = (
             f"SELECT "
@@ -295,6 +316,10 @@ class TimestreamClient:
                 facility_id=facility_id, crac_id=crac_id, limit=limit,
             )
             return [r.get("raw", {}) for r in rows]
+
+        if not _is_safe_identifier(facility_id) or (crac_id is not None and not _is_safe_identifier(crac_id)):
+            logger.warning("Rejected unsafe identifier in get_telemetry_history: facility_id=%r crac_id=%r", facility_id, crac_id)
+            return []
 
         time_pred = (
             f"AND time BETWEEN '{start_time.strftime('%Y-%m-%d %H:%M:%S')}' "
