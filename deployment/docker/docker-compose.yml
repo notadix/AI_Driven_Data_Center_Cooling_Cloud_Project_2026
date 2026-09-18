@@ -1,0 +1,195 @@
+# =============================================================================
+# docker-compose.yml — AI-Driven Cooling Digital Twin Full Stack
+# =============================================================================
+# Services:
+#   backend    — FastAPI backend + IoT Simulator
+#   postgres   — PostgreSQL 15 (relational store for RL episodes, drift events)
+#   localstack — AWS service emulation (IoT Core, Timestream, S3, SNS, SFN)
+#   grafana    — Dashboards for PUE, ASHRAE compliance, RL metrics
+#   prometheus — Metrics scraping for backend observability
+# =============================================================================
+
+version: "3.9"
+
+networks:
+  cooling_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  grafana_data:
+  prometheus_data:
+  localstack_data:
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend + IoT Simulator
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.backend
+    image: cooling-twin-backend:latest
+    container_name: cooling_twin_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      # Mode: set to "false" and provide AWS credentials for cloud mode
+      LOCAL_MODE: "true"
+
+      # IoT Simulator
+      IOT_PUBLISH_INTERVAL_S: "1.0"
+      IOT_TOPOLOGY: >
+        [
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01"},
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01"}
+        ]
+
+      # LocalStack endpoints (used when LOCAL_MODE=false in dev)
+      AWS_ENDPOINT_URL: "http://localstack:4566"
+      AWS_ACCESS_KEY_ID: "test"
+      AWS_SECRET_ACCESS_KEY: "test"
+      AWS_REGION: "us-east-1"
+
+      # Timestream
+      TIMESTREAM_DB: "CoolingTelemetry"
+      TIMESTREAM_TABLE: "TelemetryMetrics"
+
+      # PostgreSQL
+      POSTGRES_HOST: "postgres"
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: "cooling_twin"
+      POSTGRES_USER: "cooling_user"
+      POSTGRES_PASSWORD: "cooling_secret"
+
+      # CORS
+      CORS_ORIGINS: "*"
+
+      # Drift detection thresholds
+      DRIFT_THRESHOLD_PUE_MAE: "0.05"
+      DRIFT_THRESHOLD_INLET_MAE: "0.8"
+      DRIFT_THRESHOLD_PSI: "0.2"
+      DRIFT_THRESHOLD_SLA_RATE: "0.05"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    networks:
+      - cooling_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - ../../src:/app/src:ro
+      - ../../database:/app/database:ro
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 15
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: cooling_twin_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cooling_twin
+      POSTGRES_USER: cooling_user
+      POSTGRES_PASSWORD: cooling_secret
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../database/postgres_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    networks:
+      - cooling_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cooling_user -d cooling_twin"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # LocalStack — AWS service emulation
+  # ---------------------------------------------------------------------------
+  localstack:
+    image: localstack/localstack:3.3
+    container_name: cooling_twin_localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: "iot,iotsitewise,timestream-write,timestream-query,s3,sns,sqs,events,stepfunctions,lambda"
+      DEBUG: "0"
+      PERSISTENCE: "1"
+      DATA_DIR: "/var/lib/localstack/data"
+      AWS_DEFAULT_REGION: "us-east-1"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - cooling_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Prometheus — metrics scraping
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: cooling_twin_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../../deployment/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks:
+      - cooling_net
+    depends_on:
+      - backend
+
+  # ---------------------------------------------------------------------------
+  # Grafana — dashboards
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: cooling_twin_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: cooling_admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_DOMAIN: localhost
+      GF_FEATURE_TOGGLES_ENABLE: "ngalert"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../../deployment/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - cooling_net
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

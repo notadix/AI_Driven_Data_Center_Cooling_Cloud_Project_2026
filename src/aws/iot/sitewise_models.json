@@ -1,0 +1,380 @@
+{
+  "asset_models": [
+    {
+      "name": "FacilityModel",
+      "description": "Top-level data center facility asset model for aggregate thermal and power metrics.",
+      "properties": [
+        {
+          "name": "FacilityName",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "Unknown Facility"
+        },
+        {
+          "name": "Region",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "us-east-1"
+        },
+        {
+          "name": "NominalCapacityMW",
+          "dataType": "DOUBLE",
+          "type": "Attribute",
+          "defaultValue": 10.0
+        },
+        {
+          "name": "TargetPUE",
+          "dataType": "DOUBLE",
+          "type": "Attribute",
+          "defaultValue": 1.2
+        },
+        {
+          "name": "FacilityPUE",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "Dimensionless"
+        },
+        {
+          "name": "TotalITPowerMW",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "MW"
+        },
+        {
+          "name": "TotalCoolingPowerMW",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "MW"
+        },
+        {
+          "name": "GridCarbonGCO2kWh",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "gCO2/kWh"
+        },
+        {
+          "name": "AvgFacilityPUE_1h",
+          "dataType": "DOUBLE",
+          "type": "Metric",
+          "expression": "avg(FacilityPUE)",
+          "window": {"tumbling": {"interval": "1h"}},
+          "unit": "Dimensionless"
+        },
+        {
+          "name": "TotalCarbonKgHr",
+          "dataType": "DOUBLE",
+          "type": "Metric",
+          "expression": "sum(TotalCoolingPowerMW * 1000.0 * GridCarbonGCO2kWh / 1000.0)",
+          "window": {"tumbling": {"interval": "1h"}},
+          "unit": "kg_CO2/hr"
+        }
+      ],
+      "hierarchies": [
+        {
+          "name": "FacilityToCRAC",
+          "childAssetModelName": "CRACUnitModel"
+        }
+      ]
+    },
+    {
+      "name": "CRACUnitModel",
+      "description": "Computer Room Air Conditioning unit model for cooling actuation and thermal monitoring.",
+      "properties": [
+        {
+          "name": "CRACId",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "CRAC-XX"
+        },
+        {
+          "name": "CoolingCapacityKW",
+          "dataType": "DOUBLE",
+          "type": "Attribute",
+          "defaultValue": 100.0
+        },
+        {
+          "name": "RatedFlowLPM",
+          "dataType": "DOUBLE",
+          "type": "Attribute",
+          "defaultValue": 7000.0
+        },
+        {
+          "name": "SupplyTempC",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "degC"
+        },
+        {
+          "name": "ReturnTempC",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "degC"
+        },
+        {
+          "name": "FlowRateLPM",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "L/min"
+        },
+        {
+          "name": "PumpSpeedPct",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "percent"
+        },
+        {
+          "name": "FanSpeedPct",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "percent"
+        },
+        {
+          "name": "ValveSplitPct",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "percent"
+        },
+        {
+          "name": "CoolingPowerMW",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "MW"
+        },
+        {
+          "name": "CRAC_PUE",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "Dimensionless"
+        },
+        {
+          "name": "DeltaTempC",
+          "dataType": "DOUBLE",
+          "type": "Transform",
+          "expression": "ReturnTempC - SupplyTempC",
+          "unit": "degC"
+        },
+        {
+          "name": "AvgSupplyTemp_5min",
+          "dataType": "DOUBLE",
+          "type": "Metric",
+          "expression": "avg(SupplyTempC)",
+          "window": {"tumbling": {"interval": "5m"}},
+          "unit": "degC"
+        },
+        {
+          "name": "PumpPowerKW",
+          "dataType": "DOUBLE",
+          "type": "Transform",
+          "expression": "15.0 * pow(PumpSpeedPct / 100.0, 3)",
+          "unit": "kW"
+        }
+      ],
+      "hierarchies": [
+        {
+          "name": "CRACToRack",
+          "childAssetModelName": "RackModel"
+        }
+      ]
+    },
+    {
+      "name": "RackModel",
+      "description": "Server rack asset model providing thermal monitoring and IT power consumption.",
+      "properties": [
+        {
+          "name": "RackId",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "RACK-XX"
+        },
+        {
+          "name": "GridPositionX",
+          "dataType": "INTEGER",
+          "type": "Attribute",
+          "defaultValue": 0,
+          "description": "Zero-indexed column in 8x8 spatial grid"
+        },
+        {
+          "name": "GridPositionY",
+          "dataType": "INTEGER",
+          "type": "Attribute",
+          "defaultValue": 0,
+          "description": "Zero-indexed row in 8x8 spatial grid"
+        },
+        {
+          "name": "MaxThermalRatingKW",
+          "dataType": "DOUBLE",
+          "type": "Attribute",
+          "defaultValue": 20.0
+        },
+        {
+          "name": "ServerInletTempC",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "degC"
+        },
+        {
+          "name": "ServerOutletTempC",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "degC"
+        },
+        {
+          "name": "ITPowerMW",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "MW"
+        },
+        {
+          "name": "SLABreachAlert",
+          "dataType": "BOOLEAN",
+          "type": "Transform",
+          "expression": "ServerInletTempC > 27.0 || ServerInletTempC < 18.0",
+          "unit": "Boolean"
+        },
+        {
+          "name": "CriticalThermalAlert",
+          "dataType": "BOOLEAN",
+          "type": "Transform",
+          "expression": "ServerInletTempC >= 32.0",
+          "unit": "Boolean"
+        },
+        {
+          "name": "AvgInletTemp_1min",
+          "dataType": "DOUBLE",
+          "type": "Metric",
+          "expression": "avg(ServerInletTempC)",
+          "window": {"tumbling": {"interval": "1m"}},
+          "unit": "degC"
+        },
+        {
+          "name": "MaxInletTemp_5min",
+          "dataType": "DOUBLE",
+          "type": "Metric",
+          "expression": "max(ServerInletTempC)",
+          "window": {"tumbling": {"interval": "5m"}},
+          "unit": "degC"
+        }
+      ],
+      "hierarchies": [
+        {
+          "name": "RackToSensor",
+          "childAssetModelName": "SensorModel"
+        }
+      ]
+    },
+    {
+      "name": "SensorModel",
+      "description": "Physical sensor asset model for RTD temperature, magnetic flow meter, and differential pressure sensors.",
+      "properties": [
+        {
+          "name": "SensorId",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "SENSOR-XX"
+        },
+        {
+          "name": "SensorType",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "RTD_PT100",
+          "description": "RTD_PT100 | MAGNETIC_FLOW | DIFF_PRESSURE | POWER_METER"
+        },
+        {
+          "name": "Protocol",
+          "dataType": "STRING",
+          "type": "Attribute",
+          "defaultValue": "Modbus_RTU"
+        },
+        {
+          "name": "CalibrationOffset",
+          "dataType": "DOUBLE",
+          "type": "Attribute",
+          "defaultValue": 0.0
+        },
+        {
+          "name": "RawValue",
+          "dataType": "DOUBLE",
+          "type": "Measurement",
+          "unit": "raw"
+        },
+        {
+          "name": "CalibratedValue",
+          "dataType": "DOUBLE",
+          "type": "Transform",
+          "expression": "RawValue + CalibrationOffset",
+          "unit": "engineering_unit"
+        },
+        {
+          "name": "SensorHealthy",
+          "dataType": "BOOLEAN",
+          "type": "Transform",
+          "expression": "RawValue > -999.0",
+          "unit": "Boolean"
+        }
+      ]
+    }
+  ],
+  "hierarchy_bindings": [
+    {
+      "parent_model": "FacilityModel",
+      "parent_hierarchy": "FacilityToCRAC",
+      "child_model": "CRACUnitModel"
+    },
+    {
+      "parent_model": "CRACUnitModel",
+      "parent_hierarchy": "CRACToRack",
+      "child_model": "RackModel"
+    },
+    {
+      "parent_model": "RackModel",
+      "parent_hierarchy": "RackToSensor",
+      "child_model": "SensorModel"
+    }
+  ],
+  "example_assets": [
+    {
+      "name": "DC-EAST-01",
+      "model": "FacilityModel",
+      "attributes": {
+        "FacilityName": "East Coast Primary Data Center",
+        "Region": "us-east-1",
+        "NominalCapacityMW": 5.0,
+        "TargetPUE": 1.15
+      }
+    },
+    {
+      "name": "CRAC-01",
+      "model": "CRACUnitModel",
+      "parent": "DC-EAST-01",
+      "parent_hierarchy": "FacilityToCRAC",
+      "attributes": {
+        "CRACId": "CRAC-01",
+        "CoolingCapacityKW": 120.0,
+        "RatedFlowLPM": 7500.0
+      }
+    },
+    {
+      "name": "CRAC-02",
+      "model": "CRACUnitModel",
+      "parent": "DC-EAST-01",
+      "parent_hierarchy": "FacilityToCRAC",
+      "attributes": {
+        "CRACId": "CRAC-02",
+        "CoolingCapacityKW": 120.0,
+        "RatedFlowLPM": 7500.0
+      }
+    },
+    {
+      "name": "RACK-A01",
+      "model": "RackModel",
+      "parent": "CRAC-01",
+      "parent_hierarchy": "CRACToRack",
+      "attributes": {
+        "RackId": "RACK-A01",
+        "GridPositionX": 0,
+        "GridPositionY": 0,
+        "MaxThermalRatingKW": 20.0
+      }
+    }
+  ]
+}

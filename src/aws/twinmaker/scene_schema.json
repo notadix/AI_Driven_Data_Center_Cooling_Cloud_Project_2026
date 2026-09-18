@@ -1,0 +1,239 @@
+{
+  "workspace": {
+    "workspaceId": "DataCenterCoolingTwin",
+    "description": "AI-Driven Hybrid Cooling Digital Twin — 8x8 spatial thermal scene",
+    "s3Location": "s3://digitaltwin-assets/twinmaker/scenes/"
+  },
+  "scene": {
+    "sceneId": "DataCenterFloor",
+    "description": "Data center floor plan with 8x8 rack grid, 4 CRAC zones, and chilled-water loop overlays",
+    "coordinateSystem": "cartesian",
+    "units": "meters",
+    "bounds": {
+      "min": [0, 0, 0],
+      "max": [40.0, 24.0, 4.0]
+    }
+  },
+  "spatial_grid": {
+    "rows": 8,
+    "cols": 8,
+    "total_nodes": 64,
+    "cell_width_m": 1.2,
+    "cell_depth_m": 2.4,
+    "aisle_width_m": 1.0,
+    "description": "8x8 rack grid: 8 rows (A-H), 8 columns (01-08). Hot-aisle/cold-aisle alternating layout.",
+    "layout_pattern": "hot_cold_aisle",
+    "hot_aisles": [1, 3, 5, 7],
+    "cold_aisles": [0, 2, 4, 6]
+  },
+  "thermal_colormap": {
+    "description": "Linear HSL interpolation for rack inlet temperature heatmap",
+    "breakpoints": [
+      {"temp_c": 15.0, "color_hex": "#0000FF", "label": "Cold — Below ASHRAE Min"},
+      {"temp_c": 18.0, "color_hex": "#00BFFF", "label": "ASHRAE Lower Bound"},
+      {"temp_c": 22.5, "color_hex": "#00FF80", "label": "Optimal Operating"},
+      {"temp_c": 27.0, "color_hex": "#FFD700", "label": "ASHRAE Upper Bound"},
+      {"temp_c": 30.0, "color_hex": "#FF6600", "label": "Elevated — Warning"},
+      {"temp_c": 32.0, "color_hex": "#FF0000", "label": "Critical — ASHRAE Max"}
+    ],
+    "opacity_range": [0.3, 0.9],
+    "opacity_property": "server_inlet_temp_c"
+  },
+  "entities": [
+    {
+      "entityId": "DC-EAST-01",
+      "entityName": "East Coast Primary Data Center",
+      "parentEntityId": null,
+      "componentType": "FacilityComponent",
+      "position": [20.0, 12.0, 0.0],
+      "properties": {
+        "facility_id": "DC-EAST-01",
+        "region": "us-east-1",
+        "nominal_capacity_mw": 5.0,
+        "target_pue": 1.15
+      }
+    },
+    {
+      "entityId": "CRAC-01",
+      "entityName": "CRAC Unit 01 — North Zone",
+      "parentEntityId": "DC-EAST-01",
+      "componentType": "CRACComponent",
+      "position": [2.0, 1.0, 0.0],
+      "dimensions": [1.5, 0.8, 2.2],
+      "color_hex": "#1E90FF",
+      "properties": {
+        "crac_id": "CRAC-01",
+        "cooling_zone": "north",
+        "cooling_capacity_kw": 120.0,
+        "rated_flow_lpm": 7500.0,
+        "serves_racks": ["RACK-A01","RACK-A02","RACK-B01","RACK-B02","RACK-C01","RACK-C02","RACK-D01","RACK-D02"]
+      },
+      "data_bindings": {
+        "SupplyTempC": {"property": "fws_supply_temp_c", "unit": "°C"},
+        "ReturnTempC": {"property": "return_temp_c", "unit": "°C"},
+        "FlowRateLPM": {"property": "flow_rate_lpm", "unit": "L/min"},
+        "PumpSpeedPct": {"property": "pump_speed_pct", "unit": "%"},
+        "FanSpeedPct": {"property": "fan_speed_pct", "unit": "%"}
+      }
+    },
+    {
+      "entityId": "CRAC-02",
+      "entityName": "CRAC Unit 02 — South Zone",
+      "parentEntityId": "DC-EAST-01",
+      "componentType": "CRACComponent",
+      "position": [2.0, 23.0, 0.0],
+      "dimensions": [1.5, 0.8, 2.2],
+      "color_hex": "#1E90FF",
+      "properties": {
+        "crac_id": "CRAC-02",
+        "cooling_zone": "south",
+        "cooling_capacity_kw": 120.0,
+        "rated_flow_lpm": 7500.0,
+        "serves_racks": ["RACK-E01","RACK-E02","RACK-F01","RACK-F02","RACK-G01","RACK-G02","RACK-H01","RACK-H02"]
+      },
+      "data_bindings": {
+        "SupplyTempC": {"property": "fws_supply_temp_c", "unit": "°C"},
+        "ReturnTempC": {"property": "return_temp_c", "unit": "°C"},
+        "FlowRateLPM": {"property": "flow_rate_lpm", "unit": "L/min"},
+        "PumpSpeedPct": {"property": "pump_speed_pct", "unit": "%"},
+        "FanSpeedPct": {"property": "fan_speed_pct", "unit": "%"}
+      }
+    },
+    {
+      "entityId": "CRAC-03",
+      "entityName": "CRAC Unit 03 — East Wall",
+      "parentEntityId": "DC-EAST-01",
+      "componentType": "CRACComponent",
+      "position": [38.0, 6.0, 0.0],
+      "dimensions": [1.5, 0.8, 2.2],
+      "color_hex": "#1E90FF",
+      "properties": {
+        "crac_id": "CRAC-03",
+        "cooling_zone": "east",
+        "cooling_capacity_kw": 100.0,
+        "rated_flow_lpm": 6500.0,
+        "serves_racks": ["RACK-A03","RACK-A04","RACK-B03","RACK-B04","RACK-C03","RACK-C04","RACK-D03","RACK-D04"]
+      },
+      "data_bindings": {
+        "SupplyTempC": {"property": "fws_supply_temp_c", "unit": "°C"},
+        "ReturnTempC": {"property": "return_temp_c", "unit": "°C"},
+        "FlowRateLPM": {"property": "flow_rate_lpm", "unit": "L/min"},
+        "PumpSpeedPct": {"property": "pump_speed_pct", "unit": "%"},
+        "FanSpeedPct": {"property": "fan_speed_pct", "unit": "%"}
+      }
+    },
+    {
+      "entityId": "CRAC-04",
+      "entityName": "CRAC Unit 04 — West Wall",
+      "parentEntityId": "DC-EAST-01",
+      "componentType": "CRACComponent",
+      "position": [38.0, 18.0, 0.0],
+      "dimensions": [1.5, 0.8, 2.2],
+      "color_hex": "#1E90FF",
+      "properties": {
+        "crac_id": "CRAC-04",
+        "cooling_zone": "west",
+        "cooling_capacity_kw": 100.0,
+        "rated_flow_lpm": 6500.0,
+        "serves_racks": ["RACK-E03","RACK-E04","RACK-F03","RACK-F04","RACK-G03","RACK-G04","RACK-H03","RACK-H04"]
+      },
+      "data_bindings": {
+        "SupplyTempC": {"property": "fws_supply_temp_c", "unit": "°C"},
+        "ReturnTempC": {"property": "return_temp_c", "unit": "°C"},
+        "FlowRateLPM": {"property": "flow_rate_lpm", "unit": "L/min"},
+        "PumpSpeedPct": {"property": "pump_speed_pct", "unit": "%"},
+        "FanSpeedPct": {"property": "fan_speed_pct", "unit": "%"}
+      }
+    }
+  ],
+  "rack_grid": {
+    "description": "64-node 8x8 rack grid with Three.js (x,y,z) world coordinates and SiteWise entity bindings",
+    "rows": ["A", "B", "C", "D", "E", "F", "G", "H"],
+    "cols": ["01", "02", "03", "04", "05", "06", "07", "08"],
+    "rack_template": {
+      "componentType": "RackComponent",
+      "dimensions": [0.6, 1.2, 2.0],
+      "data_bindings": {
+        "ServerInletTempC": {
+          "property": "server_inlet_temp_c",
+          "drives_heatmap": true,
+          "unit": "°C"
+        },
+        "ServerOutletTempC": {"property": "server_outlet_temp_c", "unit": "°C"},
+        "ITPowerMW": {"property": "it_power_mw", "unit": "MW"},
+        "SLABreachAlert": {"property": "violated", "drives_alert_beacon": true}
+      },
+      "position_formula": {
+        "x": "col_index * (rack_width + aisle_spacing)",
+        "y": "0.0",
+        "z": "row_index * (rack_depth + row_gap)"
+      }
+    },
+    "nodes": [
+      {"rack_id": "RACK-A01", "row": 0, "col": 0, "position": [0.0, 0.0, 0.0], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-A02", "row": 0, "col": 1, "position": [2.2, 0.0, 0.0], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-A03", "row": 0, "col": 2, "position": [4.4, 0.0, 0.0], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-A04", "row": 0, "col": 3, "position": [6.6, 0.0, 0.0], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-A05", "row": 0, "col": 4, "position": [9.8, 0.0, 0.0], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-A06", "row": 0, "col": 5, "position": [12.0, 0.0, 0.0], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-A07", "row": 0, "col": 6, "position": [14.2, 0.0, 0.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-A08", "row": 0, "col": 7, "position": [16.4, 0.0, 0.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-B01", "row": 1, "col": 0, "position": [0.0, 0.0, 3.4], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-B02", "row": 1, "col": 1, "position": [2.2, 0.0, 3.4], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-B03", "row": 1, "col": 2, "position": [4.4, 0.0, 3.4], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-B04", "row": 1, "col": 3, "position": [6.6, 0.0, 3.4], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-B05", "row": 1, "col": 4, "position": [9.8, 0.0, 3.4], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-B06", "row": 1, "col": 5, "position": [12.0, 0.0, 3.4], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-B07", "row": 1, "col": 6, "position": [14.2, 0.0, 3.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-B08", "row": 1, "col": 7, "position": [16.4, 0.0, 3.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-C01", "row": 2, "col": 0, "position": [0.0, 0.0, 6.8], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-C02", "row": 2, "col": 1, "position": [2.2, 0.0, 6.8], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-C03", "row": 2, "col": 2, "position": [4.4, 0.0, 6.8], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-C04", "row": 2, "col": 3, "position": [6.6, 0.0, 6.8], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-C05", "row": 2, "col": 4, "position": [9.8, 0.0, 6.8], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-C06", "row": 2, "col": 5, "position": [12.0, 0.0, 6.8], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-C07", "row": 2, "col": 6, "position": [14.2, 0.0, 6.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-C08", "row": 2, "col": 7, "position": [16.4, 0.0, 6.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-D01", "row": 3, "col": 0, "position": [0.0, 0.0, 10.2], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-D02", "row": 3, "col": 1, "position": [2.2, 0.0, 10.2], "crac_id": "CRAC-01"},
+      {"rack_id": "RACK-D03", "row": 3, "col": 2, "position": [4.4, 0.0, 10.2], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-D04", "row": 3, "col": 3, "position": [6.6, 0.0, 10.2], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-D05", "row": 3, "col": 4, "position": [9.8, 0.0, 10.2], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-D06", "row": 3, "col": 5, "position": [12.0, 0.0, 10.2], "crac_id": "CRAC-03"},
+      {"rack_id": "RACK-D07", "row": 3, "col": 6, "position": [14.2, 0.0, 10.2], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-D08", "row": 3, "col": 7, "position": [16.4, 0.0, 10.2], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-E01", "row": 4, "col": 0, "position": [0.0, 0.0, 13.6], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-E02", "row": 4, "col": 1, "position": [2.2, 0.0, 13.6], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-E03", "row": 4, "col": 2, "position": [4.4, 0.0, 13.6], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-E04", "row": 4, "col": 3, "position": [6.6, 0.0, 13.6], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-E05", "row": 4, "col": 4, "position": [9.8, 0.0, 13.6], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-E06", "row": 4, "col": 5, "position": [12.0, 0.0, 13.6], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-E07", "row": 4, "col": 6, "position": [14.2, 0.0, 13.6], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-E08", "row": 4, "col": 7, "position": [16.4, 0.0, 13.6], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-F01", "row": 5, "col": 0, "position": [0.0, 0.0, 17.0], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-F02", "row": 5, "col": 1, "position": [2.2, 0.0, 17.0], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-F03", "row": 5, "col": 2, "position": [4.4, 0.0, 17.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-F04", "row": 5, "col": 3, "position": [6.6, 0.0, 17.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-F05", "row": 5, "col": 4, "position": [9.8, 0.0, 17.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-F06", "row": 5, "col": 5, "position": [12.0, 0.0, 17.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-F07", "row": 5, "col": 6, "position": [14.2, 0.0, 17.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-F08", "row": 5, "col": 7, "position": [16.4, 0.0, 17.0], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-G01", "row": 6, "col": 0, "position": [0.0, 0.0, 20.4], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-G02", "row": 6, "col": 1, "position": [2.2, 0.0, 20.4], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-G03", "row": 6, "col": 2, "position": [4.4, 0.0, 20.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-G04", "row": 6, "col": 3, "position": [6.6, 0.0, 20.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-G05", "row": 6, "col": 4, "position": [9.8, 0.0, 20.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-G06", "row": 6, "col": 5, "position": [12.0, 0.0, 20.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-G07", "row": 6, "col": 6, "position": [14.2, 0.0, 20.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-G08", "row": 6, "col": 7, "position": [16.4, 0.0, 20.4], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-H01", "row": 7, "col": 0, "position": [0.0, 0.0, 23.8], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-H02", "row": 7, "col": 1, "position": [2.2, 0.0, 23.8], "crac_id": "CRAC-02"},
+      {"rack_id": "RACK-H03", "row": 7, "col": 2, "position": [4.4, 0.0, 23.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-H04", "row": 7, "col": 3, "position": [6.6, 0.0, 23.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-H05", "row": 7, "col": 4, "position": [9.8, 0.0, 23.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-H06", "row": 7, "col": 5, "position": [12.0, 0.0, 23.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-H07", "row": 7, "col": 6, "position": [14.2, 0.0, 23.8], "crac_id": "CRAC-04"},
+      {"rack_id": "RACK-H08", "row": 7, "col": 7, "position": [16.4, 0.0, 23.8], "crac_id": "CRAC-04"}
+    ]
+  }
+}

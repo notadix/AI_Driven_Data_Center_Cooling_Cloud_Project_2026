@@ -1,0 +1,379 @@
+{
+  "Comment": "AI-Driven Cooling Digital Twin — MLOps Retraining & Drift Response Orchestration",
+  "StartAt": "DetectModelDrift",
+  "States": {
+    "DetectModelDrift": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${DriftDetectionLambdaArn}",
+        "Payload": {
+          "facility_id.$": "$.facility_id",
+          "trigger_event.$": "$.trigger_event",
+          "window_hours.$": "$.window_hours"
+        }
+      },
+      "ResultPath": "$.drift_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "States.TaskFailed"],
+          "IntervalSeconds": 10,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "NotifyDriftDetectionFailure",
+          "ResultPath": "$.error"
+        }
+      ],
+      "Next": "EvaluateDriftSeverity"
+    },
+
+    "EvaluateDriftSeverity": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.drift_result.Payload.drift_detected",
+          "BooleanEquals": false,
+          "Next": "NoActionRequired"
+        },
+        {
+          "Variable": "$.drift_result.Payload.severity",
+          "StringEquals": "CRITICAL",
+          "Next": "EmergencyRetraining"
+        },
+        {
+          "Variable": "$.drift_result.Payload.severity",
+          "StringEquals": "HIGH",
+          "Next": "PrioritizedRetraining"
+        }
+      ],
+      "Default": "StandardRetraining"
+    },
+
+    "NoActionRequired": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "NO_DRIFT",
+        "message": "Model performance within acceptable bounds. No retraining required.",
+        "facility_id.$": "$.facility_id"
+      },
+      "End": true
+    },
+
+    "EmergencyRetraining": {
+      "Type": "Parallel",
+      "Branches": [
+        {
+          "StartAt": "TriggerSageMakerTrainingJob",
+          "States": {
+            "TriggerSageMakerTrainingJob": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sagemaker:createTrainingJob.sync:2",
+              "Parameters": {
+                "TrainingJobName.$": "States.Format('cooling-twin-emergency-{}', $$.Execution.Name)",
+                "AlgorithmSpecification": {
+                  "TrainingImage": "${SageMakerTrainingImage}",
+                  "TrainingInputMode": "File"
+                },
+                "RoleArn": "${SageMakerRoleArn}",
+                "InputDataConfig": [
+                  {
+                    "ChannelName": "training",
+                    "DataSource": {
+                      "S3DataSource": {
+                        "S3DataType": "S3Prefix",
+                        "S3Uri": "${TrainingDataS3Uri}",
+                        "S3DataDistributionType": "FullyReplicated"
+                      }
+                    }
+                  }
+                ],
+                "OutputDataConfig": {
+                  "S3OutputPath": "${ModelOutputS3Uri}"
+                },
+                "ResourceConfig": {
+                  "InstanceType": "ml.g4dn.xlarge",
+                  "InstanceCount": 1,
+                  "VolumeSizeInGB": 50
+                },
+                "StoppingCondition": {
+                  "MaxRuntimeInSeconds": 7200
+                },
+                "HyperParameters": {
+                  "epochs": "50",
+                  "batch_size": "32",
+                  "learning_rate": "1e-4",
+                  "safety_lagrange_init": "1.0",
+                  "emergency_mode": "true"
+                }
+              },
+              "ResultPath": "$.training_result",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "SendCriticalAlert",
+          "States": {
+            "SendCriticalAlert": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "TopicArn": "${AlertTopicArn}",
+                "Message.$": "States.Format('CRITICAL DRIFT: Facility {} requires immediate retraining. Drift score: {}', $.facility_id, $.drift_result.Payload.drift_score)",
+                "Subject": "CRITICAL: Cooling Digital Twin Model Drift Detected",
+                "MessageAttributes": {
+                  "severity": {
+                    "DataType": "String",
+                    "StringValue": "CRITICAL"
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "ResultPath": "$.emergency_result",
+      "Next": "RegisterModelInSagemaker"
+    },
+
+    "PrioritizedRetraining": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sagemaker:createTrainingJob.sync:2",
+      "Parameters": {
+        "TrainingJobName.$": "States.Format('cooling-twin-priority-{}', $$.Execution.Name)",
+        "AlgorithmSpecification": {
+          "TrainingImage": "${SageMakerTrainingImage}",
+          "TrainingInputMode": "File"
+        },
+        "RoleArn": "${SageMakerRoleArn}",
+        "InputDataConfig": [
+          {
+            "ChannelName": "training",
+            "DataSource": {
+              "S3DataSource": {
+                "S3DataType": "S3Prefix",
+                "S3Uri": "${TrainingDataS3Uri}",
+                "S3DataDistributionType": "FullyReplicated"
+              }
+            }
+          }
+        ],
+        "OutputDataConfig": {
+          "S3OutputPath": "${ModelOutputS3Uri}"
+        },
+        "ResourceConfig": {
+          "InstanceType": "ml.g4dn.xlarge",
+          "InstanceCount": 1,
+          "VolumeSizeInGB": 50
+        },
+        "StoppingCondition": {
+          "MaxRuntimeInSeconds": 14400
+        },
+        "HyperParameters": {
+          "epochs": "100",
+          "batch_size": "64",
+          "learning_rate": "5e-5",
+          "safety_lagrange_init": "0.8"
+        }
+      },
+      "ResultPath": "$.training_result",
+      "Next": "RegisterModelInSagemaker"
+    },
+
+    "StandardRetraining": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sagemaker:createTrainingJob.sync:2",
+      "Parameters": {
+        "TrainingJobName.$": "States.Format('cooling-twin-standard-{}', $$.Execution.Name)",
+        "AlgorithmSpecification": {
+          "TrainingImage": "${SageMakerTrainingImage}",
+          "TrainingInputMode": "File"
+        },
+        "RoleArn": "${SageMakerRoleArn}",
+        "InputDataConfig": [
+          {
+            "ChannelName": "training",
+            "DataSource": {
+              "S3DataSource": {
+                "S3DataType": "S3Prefix",
+                "S3Uri": "${TrainingDataS3Uri}",
+                "S3DataDistributionType": "FullyReplicated"
+              }
+            }
+          }
+        ],
+        "OutputDataConfig": {
+          "S3OutputPath": "${ModelOutputS3Uri}"
+        },
+        "ResourceConfig": {
+          "InstanceType": "ml.g4dn.xlarge",
+          "InstanceCount": 1,
+          "VolumeSizeInGB": 50
+        },
+        "StoppingCondition": {
+          "MaxRuntimeInSeconds": 28800
+        },
+        "HyperParameters": {
+          "epochs": "200",
+          "batch_size": "128",
+          "learning_rate": "3e-5",
+          "safety_lagrange_init": "0.5"
+        }
+      },
+      "ResultPath": "$.training_result",
+      "Next": "RegisterModelInSagemaker"
+    },
+
+    "RegisterModelInSagemaker": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ModelRegistrationLambdaArn}",
+        "Payload": {
+          "training_job_name.$": "$.training_result.TrainingJobName",
+          "facility_id.$": "$.facility_id",
+          "model_package_group": "CoolingTwinModels"
+        }
+      },
+      "ResultPath": "$.registration_result",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 30,
+          "MaxAttempts": 2
+        }
+      ],
+      "Next": "RunModelValidation"
+    },
+
+    "RunModelValidation": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sagemaker:createProcessingJob.sync:2",
+      "Parameters": {
+        "ProcessingJobName.$": "States.Format('validation-{}', $$.Execution.Name)",
+        "ProcessingResources": {
+          "ClusterConfig": {
+            "InstanceCount": 1,
+            "InstanceType": "ml.m5.large",
+            "VolumeSizeInGB": 30
+          }
+        },
+        "AppSpecification": {
+          "ImageUri": "${SageMakerTrainingImage}",
+          "ContainerEntrypoint": ["python", "validate_model.py"]
+        },
+        "RoleArn": "${SageMakerRoleArn}",
+        "ProcessingOutputConfig": {
+          "Outputs": [
+            {
+              "OutputName": "validation_report",
+              "S3Output": {
+                "S3Uri": "${ValidationReportS3Uri}",
+                "LocalPath": "/opt/ml/processing/output",
+                "S3UploadMode": "EndOfJob"
+              }
+            }
+          ]
+        }
+      },
+      "ResultPath": "$.validation_result",
+      "Next": "CheckValidationGate"
+    },
+
+    "CheckValidationGate": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "${ValidationGateLambdaArn}",
+        "Payload": {
+          "validation_job_name.$": "$.validation_result.ProcessingJobName",
+          "facility_id.$": "$.facility_id",
+          "thresholds": {
+            "max_mae_c": 0.5,
+            "min_ashrae_compliance_rate": 0.99,
+            "max_pue_regression": 0.05
+          }
+        }
+      },
+      "ResultPath": "$.gate_result",
+      "Next": "ValidationGateDecision"
+    },
+
+    "ValidationGateDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.gate_result.Payload.passed",
+          "BooleanEquals": true,
+          "Next": "DeployToSageMakerEndpoint"
+        }
+      ],
+      "Default": "RejectModelAndAlert"
+    },
+
+    "DeployToSageMakerEndpoint": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sagemaker:updateEndpoint",
+      "Parameters": {
+        "EndpointName": "${SageMakerEndpointName}",
+        "EndpointConfigName.$": "$.registration_result.Payload.endpoint_config_name"
+      },
+      "ResultPath": "$.deploy_result",
+      "Next": "NotifySuccessfulDeploy"
+    },
+
+    "NotifySuccessfulDeploy": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertTopicArn}",
+        "Message.$": "States.Format('SUCCESS: New cooling twin model deployed for facility {}. Validation passed.', $.facility_id)",
+        "Subject": "Cooling Digital Twin — Model Retraining Complete"
+      },
+      "End": true
+    },
+
+    "RejectModelAndAlert": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertTopicArn}",
+        "Message.$": "States.Format('REJECTED: Retrained model for facility {} failed validation gates. Keeping existing model.', $.facility_id)",
+        "Subject": "Cooling Digital Twin — Model Validation FAILED"
+      },
+      "Next": "MarkValidationFailure"
+    },
+
+    "MarkValidationFailure": {
+      "Type": "Pass",
+      "Parameters": {
+        "status": "VALIDATION_FAILED",
+        "facility_id.$": "$.facility_id"
+      },
+      "End": true
+    },
+
+    "NotifyDriftDetectionFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${AlertTopicArn}",
+        "Message.$": "States.Format('ERROR: Drift detection Lambda failed for facility {}. Manual inspection required.', $.facility_id)",
+        "Subject": "Cooling Digital Twin — Drift Detection Error"
+      },
+      "Next": "DriftDetectionError"
+    },
+
+    "DriftDetectionError": {
+      "Type": "Fail",
+      "Error": "DriftDetectionFailed",
+      "Cause": "Drift detection Lambda invocation failed after retries."
+    }
+  }
+}
