@@ -6,6 +6,13 @@ import time
 import numpy as np
 import torch
 
+# See dataset/download_dataset.py for why this is needed on Windows consoles.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "digital_twin"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -112,6 +119,20 @@ def train(episodes=30, steps=144, smoke_test=False, output=None):
             }, save_path)
 
     print(f"\n[✓] Training done in {time.time() - t0:.1f}s → checkpoint: {save_path}")
+
+    # Reload the BEST checkpoint saved during training before benchmarking --
+    # `agent` otherwise still holds whatever policy state training happened
+    # to end on, which can be considerably worse than the best one found
+    # along the way (PPO is not monotonically improving; on this env it can
+    # visibly diverge over many episodes). Benchmarking the live end-of-loop
+    # agent instead of the saved-best one was a real, previously-undiscovered
+    # bug: nothing had ever run this training+benchmark loop end-to-end
+    # before, so a live agent and its own best checkpoint silently diverging
+    # was never observed.
+    if os.path.exists(save_path):
+        best_ckpt = torch.load(save_path, map_location=device, weights_only=False)
+        agent.ac.load_state_dict(best_ckpt["ac_state_dict"])
+        print(f"[*] Reloaded best checkpoint (reward={best_ckpt['best_reward']:.2f}) for benchmarking.")
 
     print("\n  BENCHMARKING vs Baselines (5 episodes each)")
     print("-" * 56)
