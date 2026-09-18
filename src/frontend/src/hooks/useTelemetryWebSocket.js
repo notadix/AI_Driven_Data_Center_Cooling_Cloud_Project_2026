@@ -101,8 +101,11 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               pump_speed_pct: p.pump_speed_pct ?? prev.pump_speed_pct,
               fan_speed_pct: p.fan_speed_pct ?? prev.fan_speed_pct,
               valve_split_pct: p.valve_split_pct ?? prev.valve_split_pct,
-              it_power_kw: p.it_power_kw ?? prev.it_power_kw,
-              cooling_power_kw: p.cooling_power_kw ?? prev.cooling_power_kw,
+              // Backend payloads report power in MW (it_power_mw / cooling_power_mw);
+              // this hook's state (and every consumer: Dashboard, PUEGauge, CarbonTracker)
+              // uses kW, so convert on the way in instead of reading a key that never exists.
+              it_power_kw: p.it_power_mw != null ? p.it_power_mw * 1000.0 : prev.it_power_kw,
+              cooling_power_kw: p.cooling_power_mw != null ? p.cooling_power_mw * 1000.0 : prev.cooling_power_kw,
               pue: p.pue ?? prev.pue,
               ashrae_status: p.ashrae_status ?? prev.ashrae_status,
             }));
@@ -152,7 +155,12 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
             const json = await res.json();
             if (json.data && json.data.records && json.data.records.length > 0) {
               const rec = json.data.records[0];
-              setTelemetry((prev) => ({ ...prev, ...rec }));
+              setTelemetry((prev) => ({
+                ...prev,
+                ...rec,
+                it_power_kw: rec.it_power_mw != null ? rec.it_power_mw * 1000.0 : prev.it_power_kw,
+                cooling_power_kw: rec.cooling_power_mw != null ? rec.cooling_power_mw * 1000.0 : prev.cooling_power_kw,
+              }));
             }
           }
         } catch {
