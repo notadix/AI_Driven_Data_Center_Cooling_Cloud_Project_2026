@@ -7,6 +7,13 @@ import numpy as np
 import torch
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
+# See dataset/download_dataset.py for why this is needed on Windows consoles.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fno_model import FNO2d
 
@@ -22,7 +29,10 @@ def evaluate(model_path: str = None):
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}. Run train_fno.py first.")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    ckpt = torch.load(ckpt_path, map_location=device)
+    # weights_only=False: PyTorch >=2.6 defaults to True, which rejects this
+    # repo's own checkpoints (train_fno.py used to store a numpy scalar,
+    # since fixed, but this is always a locally-produced, trusted file).
+    ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
     arch = ckpt["architecture"]
     model = FNO2d(**arch).to(device)
     model.load_state_dict(ckpt["model_state_dict"])

@@ -33,7 +33,9 @@ def initialize(context):
 
     fno_path = os.path.join(model_dir, "fno_surrogate_v1.pt")
     if os.path.exists(fno_path):
-        ckpt = torch.load(fno_path, map_location=_device)
+        # weights_only=False: these are always this project's own
+        # locally-produced checkpoints, not externally-sourced files.
+        ckpt = torch.load(fno_path, map_location=_device, weights_only=False)
         arch = ckpt.get("architecture", {})
         _fno_model = FNO2d(**arch).to(_device)
         _fno_model.load_state_dict(ckpt["model_state_dict"])
@@ -41,7 +43,7 @@ def initialize(context):
 
     ppo_path = os.path.join(model_dir, "safe_ppo_agent_v1.pt")
     if os.path.exists(ppo_path):
-        ckpt = torch.load(ppo_path, map_location=_device)
+        ckpt = torch.load(ppo_path, map_location=_device, weights_only=False)
         hp = ckpt.get("hyperparams", {"state_dim": 10, "action_dim": 4})
         _ppo_agent = ActorCritic(hp["state_dim"], hp["action_dim"]).to(_device)
         _ppo_agent.load_state_dict(ckpt["ac_state_dict"])

@@ -8,6 +8,13 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 
+# See dataset/download_dataset.py for why this is needed on Windows consoles.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fno_model import FNO2d
 
@@ -101,7 +108,12 @@ def train(
             torch.save({
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
-                "best_val_loss": best_val,
+                # float() here matters: np.mean() returns numpy.float64, and
+                # PyTorch >=2.6 defaults torch.load to weights_only=True,
+                # which rejects checkpoints containing numpy scalar types --
+                # this went undiscovered until a checkpoint was actually
+                # saved and reloaded for the first time in this repo.
+                "best_val_loss": float(best_val),
                 "architecture": {"in_channels": 3, "out_channels": 1, "modes1": 4, "modes2": 4, "width": 32, "num_layers": 4},
             }, save_path)
 

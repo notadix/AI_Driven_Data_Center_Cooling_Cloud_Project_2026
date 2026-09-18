@@ -85,7 +85,8 @@ class AutoControlLoop:
             import torch
             from src.ai.rl.safe_ppo import SafePPOAgent
 
-            ckpt = torch.load(CHECKPOINT_PATH, map_location="cpu")
+            # weights_only=False: always this project's own locally-trained checkpoint.
+            ckpt = torch.load(CHECKPOINT_PATH, map_location="cpu", weights_only=False)
             hp = ckpt.get("hyperparams", {"state_dim": 10, "action_dim": 4})
             agent = SafePPOAgent(state_dim=hp["state_dim"], action_dim=hp["action_dim"], device="cpu")
             agent.ac.load_state_dict(ckpt["ac_state_dict"])
