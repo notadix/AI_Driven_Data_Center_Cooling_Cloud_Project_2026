@@ -1,0 +1,257 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AWS CloudFormation Template for AI-Driven Sustainable Data Center Cooling Digital Twin
+  Frontend Infrastructure: S3 Static Web Hosting, CloudFront CDN Distribution with OAC,
+  AWS Cognito Operator Authentication & RBAC, and API Gateway REST & WebSocket integration.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: production
+    AllowedValues: [development, staging, production]
+    Description: Deployment environment tier.
+
+  ProjectTag:
+    Type: String
+    Default: AI-DataCenter-Cooling-DigitalTwin
+    Description: Resource tag for tracking and cost allocation.
+
+  BackendApiUrl:
+    Type: String
+    Default: "http://datacenter-backend.internal:8000"
+    Description: Target backend private endpoint for API Gateway HTTP proxy routing.
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # 1. Amazon S3 Bucket for Static Web App Hosting
+  # ---------------------------------------------------------------------------
+  FrontendAppBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-frontend-assets-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ---------------------------------------------------------------------------
+  # 2. CloudFront Origin Access Control (OAC)
+  # ---------------------------------------------------------------------------
+  CloudFrontOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-OAC"
+        Description: Origin Access Control for secure S3 frontend bucket access
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ---------------------------------------------------------------------------
+  # 3. S3 Bucket Policy allowing CloudFront OAC
+  # ---------------------------------------------------------------------------
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendAppBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendAppBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+
+  # ---------------------------------------------------------------------------
+  # 4. Amazon CloudFront Distribution (CDN + SPA Routing)
+  # ---------------------------------------------------------------------------
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "Digital Twin 3D Operator Console CDN (${EnvironmentName})"
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt FrontendAppBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt CloudFrontOriginAccessControl.Id
+            S3OriginConfig: {}
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+          MinTTL: 0
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 10
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectTag
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ---------------------------------------------------------------------------
+  # 5. AWS Cognito User Pool for Facility Operators (RBAC)
+  # ---------------------------------------------------------------------------
+  OperatorUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-operator-pool"
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 10
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: operator_role
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+          DeveloperOnlyAttribute: false
+      UserPoolTags:
+        Project: !Ref ProjectTag
+
+  OperatorUserPoolGroupAdmin:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: FacilityAdmin
+      Description: Full administrative permissions including manual overrides and safety resets
+      Precedence: 0
+      UserPoolId: !Ref OperatorUserPool
+
+  OperatorUserPoolGroupOperator:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: CoolingOperator
+      Description: Standard operator access for setpoint adjustments and monitoring
+      Precedence: 1
+      UserPoolId: !Ref OperatorUserPool
+
+  OperatorUserPoolGroupAuditor:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: SustainabilityAuditor
+      Description: Read-only access for carbon audits and SLA compliance reports
+      Precedence: 2
+      UserPoolId: !Ref OperatorUserPool
+
+  OperatorUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${AWS::StackName}-web-client"
+      UserPoolId: !Ref OperatorUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  # ---------------------------------------------------------------------------
+  # 6. Amazon API Gateway HTTP API
+  # ---------------------------------------------------------------------------
+  HttpApiGateway:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub "${AWS::StackName}-gateway"
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - !Sub "https://${FrontendDistribution.DomainName}"
+          - "http://localhost:5173"
+          - "http://localhost:3000"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+          - X-Requested-With
+        MaxAge: 3600
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApiGateway
+      StageName: "$default"
+      AutoDeploy: true
+
+Outputs:
+  FrontendCloudFrontURL:
+    Description: Secure HTTPS URL for the 3D Digital Twin Operator Console
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CloudFrontURL"
+
+  FrontendS3BucketName:
+    Description: S3 Static Web Hosting Bucket Name
+    Value: !Ref FrontendAppBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID for Operator Authentication
+    Value: !Ref OperatorUserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoUserPoolId"
+
+  CognitoAppClientId:
+    Description: Cognito App Client ID for React SPA
+    Value: !Ref OperatorUserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoClientId"
+
+  ApiGatewayEndpoint:
+    Description: Amazon API Gateway HTTP endpoint
+    Value: !GetAtt HttpApiGateway.ApiEndpoint
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"

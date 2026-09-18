@@ -1,0 +1,157 @@
+{
+  "version": "2026-09-18",
+  "facility_id": "DC-EAST-01",
+  "namespace": "DataCenter/CoolingDigitalTwin",
+  "alarms": [
+    {
+      "AlarmName": "ThermalSLABreachWarning-DC-EAST-01",
+      "AlarmDescription": "Triggered when any rack server inlet temperature exceeds ASHRAE recommended upper bound (27°C) for 2 consecutive evaluation periods.",
+      "Namespace": "DataCenter/CoolingDigitalTwin",
+      "MetricName": "ServerInletTempC",
+      "Dimensions": [
+        {"Name": "FacilityId", "Value": "DC-EAST-01"},
+        {"Name": "Scope", "Value": "MaxRackInlet"}
+      ],
+      "Statistic": "Maximum",
+      "Period": 60,
+      "EvaluationPeriods": 2,
+      "DatapointsToAlarm": 2,
+      "Threshold": 27.0,
+      "ComparisonOperator": "GreaterThanThreshold",
+      "TreatMissingData": "breaching",
+      "AlarmActions": ["arn:aws:sns:us-east-1:123456789012:DC-Thermal-Alerts-Topic"],
+      "Severity": "WARNING",
+      "ActionRequired": "Evaluate Safe-PPO setpoints and ramp CDU pump speed"
+    },
+    {
+      "AlarmName": "ThermalSLABreachCritical-DC-EAST-01",
+      "AlarmDescription": "Critical thermal breach: Rack server inlet temp reaches or exceeds ASHRAE allowable limit (32°C). Immediate operator action required.",
+      "Namespace": "DataCenter/CoolingDigitalTwin",
+      "MetricName": "ServerInletTempC",
+      "Dimensions": [
+        {"Name": "FacilityId", "Value": "DC-EAST-01"},
+        {"Name": "Scope", "Value": "MaxRackInlet"}
+      ],
+      "Statistic": "Maximum",
+      "Period": 10,
+      "EvaluationPeriods": 1,
+      "DatapointsToAlarm": 1,
+      "Threshold": 32.0,
+      "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+      "TreatMissingData": "breaching",
+      "AlarmActions": [
+        "arn:aws:sns:us-east-1:123456789012:DC-Thermal-Critical-PagerDuty",
+        "arn:aws:automate:us-east-1:ec2:emergency-cooling-override"
+      ],
+      "Severity": "CRITICAL",
+      "ActionRequired": "Trigger emergency override: 100% pump, 100% fan, chilled water max"
+    },
+    {
+      "AlarmName": "PUEDegradationAlarm-DC-EAST-01",
+      "AlarmDescription": "Alarm triggered when 15-minute average PUE degrades above target threshold (1.40).",
+      "Namespace": "DataCenter/CoolingDigitalTwin",
+      "MetricName": "PUE",
+      "Dimensions": [
+        {"Name": "FacilityId", "Value": "DC-EAST-01"}
+      ],
+      "Statistic": "Average",
+      "Period": 300,
+      "EvaluationPeriods": 3,
+      "DatapointsToAlarm": 3,
+      "Threshold": 1.40,
+      "ComparisonOperator": "GreaterThanThreshold",
+      "TreatMissingData": "notBreaching",
+      "AlarmActions": ["arn:aws:sns:us-east-1:123456789012:DC-Efficiency-Alerts"],
+      "Severity": "WARNING",
+      "ActionRequired": "Inspect chiller COP and economizer free-air valve actuation"
+    },
+    {
+      "AlarmName": "ContainerMemoryUtilizationAlarm-Backend",
+      "AlarmDescription": "Backend FastAPI / IoT container memory utilization exceeds 85%.",
+      "Namespace": "AWS/ECS",
+      "MetricName": "MemoryUtilization",
+      "Dimensions": [
+        {"Name": "ClusterName", "Value": "DigitalTwin-ECS-Cluster"},
+        {"Name": "ServiceName", "Value": "FastAPI-Backend-Service"}
+      ],
+      "Statistic": "Average",
+      "Period": 60,
+      "EvaluationPeriods": 2,
+      "DatapointsToAlarm": 2,
+      "Threshold": 85.0,
+      "ComparisonOperator": "GreaterThanThreshold",
+      "Severity": "WARNING",
+      "ActionRequired": "Auto-scale ECS task count or inspect in-memory ring buffer leak"
+    },
+    {
+      "AlarmName": "IoTIngestionLossAlarm-DC-EAST-01",
+      "AlarmDescription": "Telemetry packet arrival rate drops below expected threshold indicating edge network or gateway degradation.",
+      "Namespace": "DataCenter/CoolingDigitalTwin",
+      "MetricName": "IngestedPackets",
+      "Dimensions": [
+        {"Name": "FacilityId", "Value": "DC-EAST-01"}
+      ],
+      "Statistic": "Sum",
+      "Period": 60,
+      "EvaluationPeriods": 2,
+      "DatapointsToAlarm": 2,
+      "Threshold": 30.0,
+      "ComparisonOperator": "LessThanThreshold",
+      "Severity": "CRITICAL",
+      "ActionRequired": "Restart IoT edge gateway and check MQTT broker connectivity"
+    }
+  ],
+  "dashboard": {
+    "DashboardName": "DigitalTwin-Cooling-Operations",
+    "Widgets": [
+      {
+        "type": "metric",
+        "properties": {
+          "title": "Rack Inlet Temperature (ASHRAE Bounds: 18-27°C)",
+          "metrics": [
+            ["DataCenter/CoolingDigitalTwin", "ServerInletTempC", "FacilityId", "DC-EAST-01", {"stat": "Maximum", "color": "#FF4500"}],
+            ["...", "ServerInletTempC", "FacilityId", "DC-EAST-01", {"stat": "Average", "color": "#32CD32"}],
+            ["...", "ServerInletTempC", "FacilityId", "DC-EAST-01", {"stat": "Minimum", "color": "#1E90FF"}]
+          ],
+          "annotations": {
+            "horizontal": [
+              {"color": "#FF0000", "label": "ASHRAE Critical (32°C)", "value": 32.0},
+              {"color": "#FFA500", "label": "ASHRAE Upper Bound (27°C)", "value": 27.0},
+              {"color": "#00BFFF", "label": "ASHRAE Lower Bound (18°C)", "value": 18.0}
+            ]
+          },
+          "period": 60,
+          "region": "us-east-1"
+        }
+      },
+      {
+        "type": "metric",
+        "properties": {
+          "title": "Facility PUE vs. Target (1.15)",
+          "metrics": [
+            ["DataCenter/CoolingDigitalTwin", "PUE", "FacilityId", "DC-EAST-01", {"stat": "Average", "color": "#00FF7F"}]
+          ],
+          "annotations": {
+            "horizontal": [
+              {"color": "#FFD700", "label": "Target PUE (1.15)", "value": 1.15},
+              {"color": "#FF4500", "label": "Degradation Warning (1.40)", "value": 1.40}
+            ]
+          },
+          "period": 60,
+          "region": "us-east-1"
+        }
+      },
+      {
+        "type": "metric",
+        "properties": {
+          "title": "Grid Carbon Intensity (gCO2e/kWh)",
+          "metrics": [
+            ["DataCenter/CoolingDigitalTwin", "CarbonIntensity", "Region", "us-east-1", {"stat": "Average", "color": "#8A2BE2"}]
+          ],
+          "period": 300,
+          "region": "us-east-1"
+        }
+      }
+    ]
+  }
+}
