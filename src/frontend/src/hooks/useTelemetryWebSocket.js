@@ -37,6 +37,17 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   ]);
 
   const [alarms, setAlarms] = useState([]);
+  // Latest per-CRAC power reading, keyed by crac_id. it_power_kw/
+  // cooling_power_kw in `telemetry` represent the whole facility (the KPI
+  // cards say "64 Server Rows"), but each simulated CRAC only reports its
+  // own single representative rack's realistic ~10-28kW load (matching
+  // the DB schema's per-rack max_thermal_rating_kw and the SiteWise/scene
+  // per-rack bindings) -- with 4 CRACs now actively simulated, the facility
+  // total must be the SUM of their readings, not whichever one's message
+  // happened to arrive last (which made the KPI cards flicker between
+  // ~0.01-0.03 MW, one CRAC's reading at a time, instead of a stable
+  // facility aggregate).
+  const cracPowerRef = useRef({});
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
@@ -93,16 +104,43 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
+      // Every handler below checks `wsRef.current === ws` first. Calling
+      // .close() on a socket still fires ITS OWN onclose asynchronously
+      // later; without this guard, switching facilityId (or unmounting)
+      // would leave the old socket's onclose scheduling its own reconnect
+      // via the stale closure's connectWs (bound to the OLD facilityId),
+      // producing a "ghost" connection for an abandoned facility that
+      // lives forever alongside the new one -- observed live via a
+      // WebSocket traffic interceptor as two sockets (for two different,
+      // no-longer-selected facilities) both still receiving heartbeats
+      // indefinitely after switching facilities twice.
       ws.onopen = () => {
+        if (wsRef.current !== ws) return;
         setConnected(true);
         reconnectAttempts.current = 0;
       };
 
       ws.onmessage = (evt) => {
+        if (wsRef.current !== ws) return;
         try {
           const data = JSON.parse(evt.data);
           if (data.type === 'telemetry' && data.payload) {
             const p = data.payload;
+
+            // Each CRAC reports only its own representative rack's power
+            // (realistic ~10-28kW). Sum across every CRAC seen so far so
+            // the facility-level KPI cards show a stable aggregate instead
+            // of flickering between individual CRACs' small readings.
+            if (p.crac_id && p.it_power_mw != null && p.cooling_power_mw != null) {
+              cracPowerRef.current = {
+                ...cracPowerRef.current,
+                [p.crac_id]: { it_mw: p.it_power_mw, cooling_mw: p.cooling_power_mw },
+              };
+            }
+            const readings = Object.values(cracPowerRef.current);
+            const totalItMw = readings.reduce((s, r) => s + r.it_mw, 0);
+            const totalCoolingMw = readings.reduce((s, r) => s + r.cooling_mw, 0);
+
             setTelemetry((prev) => ({
               ...prev,
               server_inlet_temp_c: p.server_inlet_temp_c ?? prev.server_inlet_temp_c,
@@ -113,12 +151,9 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               pump_speed_pct: p.pump_speed_pct ?? prev.pump_speed_pct,
               fan_speed_pct: p.fan_speed_pct ?? prev.fan_speed_pct,
               valve_split_pct: p.valve_split_pct ?? prev.valve_split_pct,
-              // Backend payloads report power in MW (it_power_mw / cooling_power_mw);
-              // this hook's state (and every consumer: Dashboard, PUEGauge, CarbonTracker)
-              // uses kW, so convert on the way in instead of reading a key that never exists.
-              it_power_kw: p.it_power_mw != null ? p.it_power_mw * 1000.0 : prev.it_power_kw,
-              cooling_power_kw: p.cooling_power_mw != null ? p.cooling_power_mw * 1000.0 : prev.cooling_power_kw,
-              pue: p.pue ?? prev.pue,
+              it_power_kw: readings.length > 0 ? totalItMw * 1000.0 : prev.it_power_kw,
+              cooling_power_kw: readings.length > 0 ? totalCoolingMw * 1000.0 : prev.cooling_power_kw,
+              pue: readings.length > 0 && totalItMw > 0 ? Number(((totalItMw + totalCoolingMw) / totalItMw).toFixed(4)) : (p.pue ?? prev.pue),
               ashrae_status: p.ashrae_status ?? prev.ashrae_status,
             }));
 
@@ -141,6 +176,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       };
 
       ws.onclose = () => {
+        if (wsRef.current !== ws) return;
         setConnected(false);
         const delay = Math.min(10000, 1000 * Math.pow(1.5, reconnectAttempts.current));
         reconnectAttempts.current += 1;
@@ -148,7 +184,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       };
 
       ws.onerror = () => {
-        ws.close();
+        if (wsRef.current === ws) ws.close();
       };
     } catch {
       setConnected(false);
@@ -165,6 +201,9 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   // closes the socket it just opened -> reconnect -> repeat forever). The
   // interval reads the latest value via connectedRef instead.
   useEffect(() => {
+    // Drop any accumulated per-CRAC power readings from the previous
+    // facility so its stale numbers can't leak into this one's aggregate.
+    cracPowerRef.current = {};
     connectWs();
 
     pollIntervalRef.current = setInterval(async () => {
@@ -213,7 +252,13 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
     }, 1500);
 
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      // Null the ref BEFORE closing: the socket's own onclose handler
+      // checks `wsRef.current === ws` to decide whether to reconnect, and
+      // that check needs to see this socket as already-superseded by the
+      // time its (asynchronous) close event actually fires.
+      const socket = wsRef.current;
+      wsRef.current = null;
+      if (socket) socket.close();
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
