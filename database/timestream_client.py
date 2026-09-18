@@ -146,7 +146,7 @@ class TimestreamClient:
     TELEMETRY_MEASURES = [
         "server_inlet_temp_c", "server_outlet_temp_c", "fws_supply_temp_c",
         "return_temp_c", "flow_rate_lpm", "pump_speed_pct", "fan_speed_pct",
-        "valve_split_pct", "it_power_mw", "cooling_power_mw", "pue",
+        "valve_split_pct", "it_power_mw", "cooling_power_mw", "pue", "wue",
         "grid_carbon_gco2_kwh",
     ]
 

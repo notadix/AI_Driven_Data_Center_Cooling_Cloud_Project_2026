@@ -154,6 +154,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               it_power_kw: readings.length > 0 ? totalItMw * 1000.0 : prev.it_power_kw,
               cooling_power_kw: readings.length > 0 ? totalCoolingMw * 1000.0 : prev.cooling_power_kw,
               pue: readings.length > 0 && totalItMw > 0 ? Number(((totalItMw + totalCoolingMw) / totalItMw).toFixed(4)) : (p.pue ?? prev.pue),
+              wue: p.wue ?? prev.wue,
               ashrae_status: p.ashrae_status ?? prev.ashrae_status,
             }));
 

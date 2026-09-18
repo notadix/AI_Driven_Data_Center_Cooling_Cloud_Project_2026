@@ -49,6 +49,7 @@ class TelemetryPayload:
     it_power_mw: float
     cooling_power_mw: float
     pue: float
+    wue: float
     grid_carbon_gco2_kwh: float
 
     def to_json(self) -> str:
@@ -123,6 +124,41 @@ class PhysicsSimulator:
         base_cop = 3.5
         return max(1.5, base_cop - 0.04 * max(0.0, ambient_c - 15.0))
 
+    def _estimate_relative_humidity(self, ambient_c: float) -> float:
+        """Coarse RH estimate correlated with ambient temperature, matching
+        the same inverse diurnal relationship src/aws/serverless/
+        lambda_weather_fetcher.py's get_ambient_weather() already uses
+        (rh_base - diurnal_offset * 2.5), since this simulator doesn't
+        track humidity as its own state variable."""
+        baseline_c = 22.0
+        rh = 60.0 - (ambient_c - baseline_c) * 2.5
+        return max(20.0, min(95.0, rh))
+
+    def _compute_wue(self, chiller_kw: float, it_power_kw: float, ambient_c: float) -> float:
+        """Water Usage Effectiveness (L/kWh-IT): approximates evaporative
+        cooling-tower water consumption from the chiller's heat-rejection
+        load, using the wet-bulb temperature (reusing
+        lambda_weather_fetcher.compute_psychrometrics rather than a second,
+        inconsistent psychrometric formula) to capture that humid air
+        reduces evaporative efficiency, requiring more water per unit of
+        heat rejected. This is a coarse approximation, not a full
+        cooling-tower model -- there is no per-tower design data to
+        calibrate against."""
+        from src.aws.serverless.lambda_weather_fetcher import compute_psychrometrics
+
+        rh = self._estimate_relative_humidity(ambient_c)
+        wet_bulb_c = compute_psychrometrics(ambient_c, rh)["wet_bulb_temp_c"]
+
+        latent_heat_kj_per_kg = 2260.0  # water, at cooling-tower operating temps
+        blowdown_drift_factor = 1.25    # extra water lost to blowdown/drift beyond pure evaporation
+        # Humid air (high wet-bulb) makes evaporation less efficient, so the
+        # tower needs proportionally more water per kW rejected to compensate.
+        humidity_penalty = 1.0 + max(0.0, wet_bulb_c - 15.0) / 40.0
+
+        water_kg_per_hr = (chiller_kw * 3600.0 / latent_heat_kj_per_kg) * blowdown_drift_factor * humidity_penalty
+        water_l_per_hr = water_kg_per_hr  # 1 kg water ~= 1 L
+        return float(water_l_per_hr / max(0.01, it_power_kw))
+
     def step(self) -> TelemetryPayload:
         self._step += 1
         hour = (self._step % 144) * (24.0 / 144.0)
@@ -174,6 +210,7 @@ class PhysicsSimulator:
         cooling_kw = pump_kw + fan_kw + chiller_kw
         total_kw = self.it_power_kw + cooling_kw
         pue = total_kw / max(0.01, self.it_power_kw)
+        wue = self._compute_wue(chiller_kw, self.it_power_kw, self.ambient_c)
 
         return TelemetryPayload(
             timestamp_iso=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -191,6 +228,7 @@ class PhysicsSimulator:
             it_power_mw=round(self.it_power_kw / 1000.0, 6),
             cooling_power_mw=round(cooling_kw / 1000.0, 6),
             pue=round(pue, 4),
+            wue=round(wue, 4),
             grid_carbon_gco2_kwh=round(self.carbon_gco2_kwh, 1),
         )
 
