@@ -41,6 +41,18 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
   const pollIntervalRef = useRef(null);
+  // Mirrors `connected` for the poll interval's closure without being a
+  // dependency of the connect/poll effect below -- see its comment.
+  const connectedRef = useRef(false);
+  useEffect(() => {
+    connectedRef.current = connected;
+  }, [connected]);
+  // Monotonic counter for alarm React keys: Date.now() alone collides when
+  // more than one ASHRAE breach lands in the same millisecond, which is
+  // routine at the 10Hz WebSocket rate (observed live as a duplicate-key
+  // warning once telemetry actually started streaming after the connect
+  // loop fix above).
+  const alarmIdCounter = useRef(0);
 
   // Generate initial 8x8 matrix (64 racks: RACK-A01 to H08)
   function generateInitialGrid() {
@@ -114,7 +126,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
             if (p.ashrae_status === 'CRITICAL' || p.ashrae_status === 'SLA_BREACH') {
               setAlarms((prev) => [
                 {
-                  id: Date.now(),
+                  id: `${Date.now()}-${alarmIdCounter.current++}`,
                   timestamp: new Date().toLocaleTimeString(),
                   severity: p.ashrae_status,
                   message: `${p.rack_id || 'Rack'}: Inlet temp ${p.server_inlet_temp_c?.toFixed(1)}°C outside ASHRAE SLA envelope`,
@@ -144,11 +156,19 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   }, [facilityId]);
 
   // Periodic REST poll fallback + synthetic simulation if offline
+  //
+  // `connected` is intentionally NOT a dependency here: it's set by this
+  // same effect's WebSocket (via connectWs()'s onopen/onclose handlers), so
+  // including it would re-run this effect every time the socket opens or
+  // closes -- tearing down and recreating the connection in a destructive
+  // loop (WS opens -> setConnected(true) -> effect re-fires -> cleanup
+  // closes the socket it just opened -> reconnect -> repeat forever). The
+  // interval reads the latest value via connectedRef instead.
   useEffect(() => {
     connectWs();
 
     pollIntervalRef.current = setInterval(async () => {
-      if (!connected) {
+      if (!connectedRef.current) {
         try {
           const res = await fetch(`http://localhost:8000/api/v1/telemetry/latest/${facilityId}`);
           if (res.ok) {
@@ -197,7 +217,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [connectWs, connected, facilityId]);
+  }, [connectWs, facilityId]);
 
   // Submit operator control action
   const submitControlAction = async (cracId, actionPayload) => {

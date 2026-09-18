@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["scripts/run_backend_local.py"],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "src/frontend", "run", "dev", "--", "--host"],
+      "port": 5173
+    }
+  ]
+}

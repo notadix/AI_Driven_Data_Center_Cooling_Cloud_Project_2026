@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTelemetryWebSocket } from '../hooks/useTelemetryWebSocket';
 import ThreeDHeatmap from '../components/ThreeDHeatmap';
 import PUEGauge from '../components/PUEGauge';
@@ -22,6 +22,12 @@ import {
 export default function Dashboard() {
   const [selectedFacility, setSelectedFacility] = useState('DC-EAST-01');
   const [selectedRack, setSelectedRack] = useState(null);
+  // Stable identity: ThreeDHeatmap's WebGL scene-setup effect depends on
+  // this callback, so a fresh inline arrow function here (recreated every
+  // Dashboard re-render, which happens on every telemetry tick) would tear
+  // down and rebuild the entire Three.js renderer/scene each time --
+  // exhausting the browser's WebGL context limit within seconds.
+  const handleSelectRack = useCallback((rack) => setSelectedRack(rack), []);
 
   const {
     connected,
@@ -185,7 +191,7 @@ export default function Dashboard() {
       <section className="relative">
         <ThreeDHeatmap
           spatialGrid={spatialGrid}
-          onSelectRack={(rack) => setSelectedRack(rack)}
+          onSelectRack={handleSelectRack}
           selectedRack={selectedRack}
         />
 
