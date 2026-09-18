@@ -27,7 +27,7 @@ async def _stream_messages(
     websocket: WebSocket,
     facility_id: Optional[str],
     crac_id: Optional[str],
-    max_rate_hz: float = 4.0,
+    max_rate_hz: float = 10.0,
 ) -> None:
     """Reads from the local bus queue and forwards matching messages to the WebSocket client."""
     min_interval = 1.0 / max(0.1, max_rate_hz)
@@ -80,7 +80,7 @@ async def telemetry_stream(
     websocket: WebSocket,
     facility_id: Optional[str] = Query(None, description="Filter by facility ID"),
     crac_id: Optional[str] = Query(None, description="Filter by CRAC ID"),
-    max_rate_hz: float = Query(4.0, ge=0.1, le=10.0, description="Max message rate (Hz)"),
+    max_rate_hz: float = Query(10.0, ge=0.1, le=10.0, description="Max message rate (Hz)"),
 ) -> None:
     """
     WebSocket endpoint streaming live telemetry from the IoT local bus.

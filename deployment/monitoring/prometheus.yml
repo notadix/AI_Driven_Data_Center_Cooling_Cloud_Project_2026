@@ -1,0 +1,17 @@
+# Prometheus scrape configuration for the Cooling Digital Twin stack.
+# NOTE: the FastAPI backend does not yet expose a /metrics endpoint —
+# this job is a placeholder wiring point so `docker-compose up` succeeds
+# and Prometheus is ready the moment metrics instrumentation is added.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "cooling-twin-backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]

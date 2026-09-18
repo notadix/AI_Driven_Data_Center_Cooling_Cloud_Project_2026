@@ -322,11 +322,19 @@ class IoTSimulator:
         success_aws = False
         if self._aws_publisher:
             success_aws = self._aws_publisher.publish(topic, payload_json)
+        payload_dict = json.loads(payload_json)
         # Always publish to local bus regardless
         try:
-            local_bus.publish(topic, json.loads(payload_json))
+            local_bus.publish(topic, payload_dict)
         except Exception as e:
             logger.debug("Local bus publish error: %s", e)
+        # Persist to Timestream (or its in-memory fallback) so history/analytics
+        # queries have data to serve even when running without a real AWS account.
+        try:
+            from database.timestream_client import get_timestream_client
+            get_timestream_client().write_telemetry(payload_dict)
+        except Exception as e:
+            logger.debug("Timestream write error: %s", e)
 
     def apply_control_action(self, crac_id: str, control: Dict[str, float]) -> None:
         for key, sim in self._simulators.items():

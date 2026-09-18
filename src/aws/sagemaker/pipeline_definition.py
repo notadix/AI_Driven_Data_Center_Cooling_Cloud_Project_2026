@@ -83,6 +83,30 @@ def get_pipeline():
             depends_on=[step_fno],
         )
 
+        step_evaluate = ProcessingStep(
+            name="EvaluateFNOSurrogate",
+            processor=processor,
+            code="src/ai/surrogate/evaluate_fno.py",
+            inputs=[
+                ProcessingInput(
+                    source=step_fno.properties.ModelArtifacts.S3ModelArtifacts,
+                    destination="/opt/ml/processing/model",
+                ),
+                ProcessingInput(
+                    source=f"s3://{S3_BUCKET}/processed/",
+                    destination="/opt/ml/processing/test",
+                ),
+            ],
+            outputs=[
+                ProcessingOutput(
+                    output_name="evaluation",
+                    source="/opt/ml/processing/output",
+                    destination=f"s3://{S3_BUCKET}/evaluation/",
+                )
+            ],
+            depends_on=[step_fno, step_rl],
+        )
+
         model = Model(
             image_uri=ECR_IMAGE,
             model_data=step_fno.properties.ModelArtifacts.S3ModelArtifacts,
@@ -98,13 +122,13 @@ def get_pipeline():
                 model_package_group_name="DataCenterCoolingModels",
                 approval_status="PendingManualApproval",
             ),
-            depends_on=[step_rl],
+            depends_on=[step_evaluate],
         )
 
         pipeline = Pipeline(
             name=PIPELINE_NAME,
             parameters=[p_instance, t_instance, fno_epochs, rl_episodes],
-            steps=[step_process, step_fno, step_rl, step_register],
+            steps=[step_process, step_fno, step_rl, step_evaluate, step_register],
             sagemaker_session=sess,
         )
         return pipeline
@@ -113,7 +137,13 @@ def get_pipeline():
         print("[!] sagemaker SDK not installed — returning pipeline config dict for offline review.")
         return {
             "pipeline": PIPELINE_NAME,
-            "steps": ["PreprocessTelemetry", "TrainFNOSurrogate", "TrainSafePPO", "RegisterCoolingModel"],
+            "steps": [
+                "PreprocessTelemetry",
+                "TrainFNOSurrogate",
+                "TrainSafePPO",
+                "EvaluateFNOSurrogate",
+                "RegisterCoolingModel",
+            ],
             "s3_bucket": S3_BUCKET,
             "ecr_image": ECR_IMAGE,
             "role_arn": ROLE_ARN,

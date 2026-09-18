@@ -51,13 +51,31 @@ class DataCenterCoolingEnv(gym.Env):
         self.supply_c = 18.5
         self.pump_pct = 75.0
         self.fan_pct = 70.0
+        self.valve_pct = 20.0
 
     def _obs(self) -> np.ndarray:
         flow_lpm = 2000.0 + (self.pump_pct / 100.0) * 5500.0
         ret, inlet, outlet = self.physics.thermal_balance(self.it_kw, self.supply_c, flow_lpm, self.ambient_c)
-        _, _, _, cooling_kw, pue = self.physics.power_and_pue(
+
+        # Free-air economizer mixing: the valve blends ambient air into the
+        # supply loop when outside conditions are cool enough to help, cutting
+        # the chiller load. Mirrors the same mixing model used by the IoT
+        # simulator (src/aws/iot/iot_publisher.py PhysicsSimulator.step).
+        free_cool_frac = np.clip(
+            (self.valve_pct / 100.0) * (1.0 - max(0.0, (self.ambient_c - 18.0) / 20.0)),
+            0.0, 1.0,
+        )
+        mixed_inlet = (1.0 - free_cool_frac) * inlet + free_cool_frac * min(self.ambient_c, 22.0)
+        outlet = outlet + (mixed_inlet - inlet)
+        inlet = mixed_inlet
+
+        _, _, _, cooling_kw, _ = self.physics.power_and_pue(
             self.it_kw, self.supply_c, self.pump_pct, self.fan_pct, self.ambient_c
         )
+        # Free cooling offsets part of the chiller's share of cooling power;
+        # PUE is recomputed from the adjusted cooling load to stay consistent.
+        cooling_kw = float(cooling_kw * (1.0 - 0.3 * free_cool_frac))
+        pue = float((self.it_kw + cooling_kw + 80.0) / max(1.0, self.it_kw))
         return np.array(
             [self.it_kw, self.ambient_c, self.carbon, self.supply_c, ret, flow_lpm, inlet, outlet, cooling_kw, pue],
             dtype=np.float32,
@@ -73,6 +91,7 @@ class DataCenterCoolingEnv(gym.Env):
         self.supply_c = float(rng.uniform(16.0, 21.0))
         self.pump_pct = float(rng.uniform(60.0, 85.0))
         self.fan_pct = float(rng.uniform(55.0, 80.0))
+        self.valve_pct = float(rng.uniform(0.0, 40.0))
         obs = self._obs()
         return obs, {"pue": float(obs[9]), "inlet_c": float(obs[6])}
 
@@ -83,6 +102,7 @@ class DataCenterCoolingEnv(gym.Env):
         self.supply_c = float(np.clip(self.supply_c + a[0] * 1.5, 14.0, 24.0))
         self.pump_pct = float(35.0 + (a[1] + 1.0) * 0.5 * 65.0)
         self.fan_pct = float(30.0 + (a[2] + 1.0) * 0.5 * 70.0)
+        self.valve_pct = float((a[3] + 1.0) * 0.5 * 40.0)
 
         hour = (self._step % self.max_steps) * (24.0 / self.max_steps)
         self.ambient_c = float(np.clip(

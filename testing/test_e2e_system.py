@@ -43,6 +43,7 @@ from src.aws.serverless.lambda_weather_fetcher import (
     get_ambient_weather,
 )
 from src.ai.rl.safe_ppo import SafePPOAgent, ActorCritic
+from src.ai.rl.explainability import compute_feature_attribution, OBS_FEATURE_NAMES
 
 
 # ---------------------------------------------------------------------------
@@ -356,16 +357,20 @@ class TestE2ECloudWatchAlarms:
 # ---------------------------------------------------------------------------
 
 class TestE2ESHAPAttributions:
-    """Verifies feature attribution generation sanity for policy decisions."""
+    """Verifies feature attribution generation for real Safe-PPO policy decisions."""
 
     def test_feature_attribution_magnitudes(self):
-        # Verify that synthetic or computed SHAP values have valid sign & bounds
-        features = ["it_load_kw", "ambient_temp_c", "supply_temp_c", "grid_carbon", "mass_flow_lpm"]
-        weights = [0.42, 0.35, -0.24, -0.16, 0.09]
+        # Real gradient x input attribution against the actual policy network,
+        # not a hardcoded stand-in — exercises src/ai/rl/explainability.py.
+        agent = SafePPOAgent(state_dim=10, action_dim=4)
+        sample_obs = np.array(
+            [18000.0, 22.0, 320.0, 18.5, 29.5, 4800.0, 22.5, 36.0, 2500.0, 1.13],
+            dtype=np.float32,
+        )
 
-        for w in weights:
-            assert -1.0 <= w <= 1.0, "SHAP attribution out of bounded domain"
+        attribution = compute_feature_attribution(agent, sample_obs)
 
-        # IT power and ambient temp should positively push cooling demands
-        assert weights[0] > 0
-        assert weights[1] > 0
+        assert set(attribution.keys()) == set(OBS_FEATURE_NAMES)
+        for name, w in attribution.items():
+            assert -1.0 <= w <= 1.0, f"Attribution for {name} out of bounded domain: {w}"
+        assert np.isclose(sum(abs(v) for v in attribution.values()), 1.0, atol=1e-3)
