@@ -27,3 +27,13 @@ dist/
 *.swp
 *.swo
 
+# Regeneratable dataset artifacts (run `python dataset/download_dataset.py`
+# then `python dataset/preprocess_telemetry.py` to reproduce). Committing
+# ~50MB of binary data/tensors here would bloat the repo with no diffing
+# benefit; the project's own architecture already designates S3 as the
+# data lake for this.
+dataset/raw/*
+!dataset/raw/.gitkeep
+dataset/processed/*
+!dataset/processed/.gitkeep
+
