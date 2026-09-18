@@ -291,10 +291,20 @@ class IoTSimulator:
         aws_endpoint: Optional[str] = None,
         aws_region: str = "us-east-1",
     ):
-        # Default topology: 1 facility, 2 CRACs, 1 rack each
+        # Default topology: 1 facility, 4 CRACs, 1 representative rack each.
+        # Rack choices match the quadrant convention used everywhere else
+        # (scene_schema.json rack_grid, useTelemetryWebSocket.js's fallback
+        # grid, postgres_schema.sql's seed data): rows A-D/cols 1-4 -> CRAC-01,
+        # rows A-D/cols 5-8 -> CRAC-03, rows E-H/cols 1-4 -> CRAC-02,
+        # rows E-H/cols 5-8 -> CRAC-04. Previously only 2 CRACs were
+        # simulated here even though the DB seed data, the scene, and the
+        # OperatorControlPanel UI all assume 4 -- selecting CRAC-03/04
+        # anywhere in the app referred to a CRAC that simply didn't exist.
         self.topology = topology or [
             {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01"},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-B01"},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01"},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05"},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05"},
         ]
         self.publish_interval_s = publish_interval_s
         self._running = False

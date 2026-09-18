@@ -41,10 +41,14 @@ services:
 
       # IoT Simulator
       IOT_PUBLISH_INTERVAL_S: "1.0"
+      # 4 CRACs to match the DB seed data, scene_schema.json, and the
+      # OperatorControlPanel UI, which all assume 4 exist.
       IOT_TOPOLOGY: >
         [
           {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01"},
-          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01"}
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01"},
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05"},
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05"}
         ]
 
       # LocalStack endpoints (used when LOCAL_MODE=false in dev)

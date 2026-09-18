@@ -278,7 +278,7 @@ export default function Dashboard() {
 
         {/* Supervisory Control Panel */}
         <OperatorControlPanel
-          currentMode={telemetry.mode || 'auto'}
+          facilityId={selectedFacility}
           onModeChange={setControlMode}
           onSubmitAction={submitControlAction}
           telemetry={telemetry}

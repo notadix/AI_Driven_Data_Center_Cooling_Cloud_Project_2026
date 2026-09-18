@@ -22,6 +22,7 @@ from src.aws.iot.iot_publisher import get_simulator
 from src.backend.api.v1.telemetry import router as telemetry_router
 from src.backend.api.v1.control import router as control_router
 from src.backend.websockets.stream import router as ws_router
+from src.backend.services.auto_control import get_auto_control_loop
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,7 +39,13 @@ async def lifespan(app: FastAPI):
     sim = get_simulator()
     sim.start()
     logger.info("IoT Simulator started (%.1fs publish interval)", sim.publish_interval_s)
+
+    auto_control = get_auto_control_loop()
+    auto_control.start()
+
     yield
+
+    auto_control.stop()
     sim.stop()
     logger.info("IoT Simulator stopped")
 

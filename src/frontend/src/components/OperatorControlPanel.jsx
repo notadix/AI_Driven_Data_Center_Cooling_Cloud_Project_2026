@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sliders, ToggleLeft, ToggleRight, AlertOctagon, Check, RefreshCw, Lock, ShieldAlert } from 'lucide-react';
 
 export default function OperatorControlPanel({
-  currentMode = 'auto',
+  facilityId = 'DC-EAST-01',
   onModeChange,
   onSubmitAction,
   telemetry = {},
 }) {
   const [selectedCrac, setSelectedCrac] = useState('CRAC-01');
+  // The real mode for `selectedCrac`, fetched from the backend -- NOT
+  // derived from a shared `telemetry.mode` flag. That value used to come
+  // from the parent, but it's a single global optimistic flag with no
+  // per-CRAC identity and no connection to the backend's actual per-CRAC
+  // mode store, so switching this panel's CRAC tab never reflected that
+  // CRAC's real state (e.g. selecting a CRAC a different client had put
+  // into manual mode would still show "AUTO (SAFE-PPO)").
+  const [actualMode, setActualMode] = useState('auto');
   const [deltaSupply, setDeltaSupply] = useState(0.0);
   const [pumpSpeed, setPumpSpeed] = useState(telemetry.pump_speed_pct || 75.0);
   const [fanSpeed, setFanSpeed] = useState(telemetry.fan_speed_pct || 70.0);
@@ -16,13 +24,36 @@ export default function OperatorControlPanel({
   const [submittedFeedback, setSubmittedFeedback] = useState(null);
   const [emergencyActive, setEmergencyActive] = useState(false);
 
-  const isManual = currentMode === 'manual';
+  const isManual = actualMode === 'manual';
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMode = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/api/v1/control/status/${facilityId}`);
+        if (res.ok) {
+          const json = await res.json();
+          const crac = json.data?.cracs?.find((c) => c.crac_id === selectedCrac);
+          if (crac && !cancelled) setActualMode(crac.mode);
+        }
+      } catch {
+        // Backend unreachable -- keep the last known mode rather than reset it.
+      }
+    };
+    fetchMode();
+    const interval = setInterval(fetchMode, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [selectedCrac, facilityId]);
 
   const handleModeToggle = async () => {
     const nextMode = isManual ? 'auto' : 'manual';
     if (onModeChange) {
       await onModeChange(selectedCrac, nextMode);
     }
+    setActualMode(nextMode);
   };
 
   const handleSubmit = async () => {

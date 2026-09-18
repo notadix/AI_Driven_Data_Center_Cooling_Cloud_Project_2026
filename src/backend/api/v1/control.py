@@ -92,6 +92,33 @@ def _ts() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def get_crac_mode(crac_id: str) -> str:
+    """Public accessor for the in-memory mode store, used by the auto-control loop."""
+    return _crac_modes.get(crac_id, "auto")
+
+
+def record_action(
+    crac_id: str,
+    control: Dict[str, float],
+    source: str,
+    safety_status: str = "NORMAL",
+    v_reward: float = 0.0,
+    v_cost: float = 0.0,
+) -> None:
+    """Records an action into the same last-action store submit_action() uses, so
+    actions applied by the auto-control loop show up in GET /status/{facility_id}
+    exactly like manually-submitted ones do."""
+    _last_actions[crac_id] = {
+        "crac_id": crac_id,
+        "control": control,
+        "source": source,
+        "safety_status": safety_status,
+        "v_reward": v_reward,
+        "v_cost": v_cost,
+        "applied_at": _ts(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # POST /action/{crac_id}
 # ---------------------------------------------------------------------------
@@ -102,6 +129,9 @@ async def submit_action(
     action: ControlAction = Body(...),
 ) -> JSONResponse:
     sim = get_simulator()
+
+    if not any(t["crac_id"] == crac_id for t in sim.topology):
+        raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
 
     # Enforce manual-mode gate: RL actions blocked if in manual mode
     mode = _crac_modes.get(crac_id, "auto")
@@ -122,16 +152,7 @@ async def submit_action(
 
     sim.apply_control_action(crac_id, control)
 
-    # Persist last action
-    _last_actions[crac_id] = {
-        "crac_id": crac_id,
-        "control": control,
-        "source": action.source,
-        "safety_status": action.safety_status,
-        "v_reward": action.v_reward,
-        "v_cost": action.v_cost,
-        "applied_at": _ts(),
-    }
+    record_action(crac_id, control, action.source, action.safety_status, action.v_reward, action.v_cost)
 
     logger.info(
         "Control action applied: crac=%s source=%s delta_supply=%.2f pump=%.1f fan=%.1f valve=%.1f",
@@ -214,6 +235,7 @@ async def set_setpoint(
         "valve_split_pct": setpoint.valve_split_pct,
     }
     sim.apply_control_action(crac_id, control)
+    record_action(crac_id, control, source="manual")
 
     return _ok({
         "crac_id": crac_id,
