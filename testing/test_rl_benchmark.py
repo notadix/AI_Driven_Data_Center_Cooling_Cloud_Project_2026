@@ -74,3 +74,16 @@ def test_guideline36_is_a_stronger_baseline_than_a_constant_setpoint():
     const = train_rl.run_policy(env, None, ctrl_type="constant", seeds=seeds, n_eps=6)
     assert gl36["violation_rate"] <= const["violation_rate"]
     assert gl36["cooling_kwh"] <= const["cooling_kwh"]
+
+
+def test_energy_headroom_result_is_consistent_with_the_benchmark():
+    import json
+    with open(os.path.join(ROOT, "results", "energy_headroom.json")) as f:
+        h = json.load(f)
+    with open(os.path.join(ROOT, "results", "rl_benchmark.json")) as f:
+        b = json.load(f)
+    bound = h["max_possible_reduction_vs_gl36"]["mean_pct"]
+    agent = b["selected_safe_ppo"]["reduction_vs_gl36"]["mean_pct"]
+    assert h["oracle_violation_rate"] == 0.0
+    assert agent <= bound + 1.5            # a learned policy cannot beat the physical optimum (up to noise)
+    assert bound < 15.0                    # the report's 15% lower target is out of reach in this model

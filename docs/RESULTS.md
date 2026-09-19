@@ -13,7 +13,7 @@ to"), this document replaces it with what was actually measured.
 |---|---|---|
 | 1. Real-time two-way digital twin, fidelity ≈ 2% MAPE | PUE 0.65% and inlet temperature 0.08% MAPE meet the target; cooling power 12.4%, return 7.2%, outlet 8.4% do not | §1 · `results/twin_fidelity.json` |
 | 2. Predictive thermal surrogate + load forecasting | FNO R² 0.9997 / MAE 0.06 °C / 6.3 ms; load forecast beats persistence at ≥ 30 min (8.7% vs 9.4% MAPE at 60 min) | §2 · `results/fno_eval_metrics.json`, `results/load_forecast_metrics.json` |
-| 3. Safe RL, 15–30% less cooling energy vs a Guideline-36 baseline, no SLA violations | Selected agent −14.2% (95% CI 12.8–15.4%), 0 violations; 5-seed mean −9.2% ± 4.9%, 0 violations | §3 · `results/rl_benchmark.json` |
+| 3. Safe RL, 15–30% less cooling energy vs a Guideline-36 baseline, no SLA violations | Selected agent −14.2% (CI 12.8–15.4%), 0 violations; 5-seed mean −9.2% ± 4.9%. **Physical upper bound in this twin: −14.4%**, of which the agent captures 98.4% | §3 · `results/rl_benchmark.json`, `results/energy_headroom.json` |
 | 4. Carbon- and water-aware optimisation | Load shifting −1.3…−2.1% facility CO₂; Safe-PPO −4.2…−7.3% water | §4 · `results/carbon_water.json` |
 | 5. Scalable, fault-tolerant pipeline; transfer / online learning | Zero-shot transfer −9.5% with 0 violations; sensor-fault guard; online calibration restores safety under plant drift. **Not deployed on AWS; LocalStack not run live** | §5–6 · `results/transfer_learning.json` |
 | 6. Baselines, explainability, reproducible benchmark | Constant, PID, GL36-style, standard PPO, Lagrangian-only, Safe-PPO; live gradient×input attribution | §3, §7 |
@@ -101,11 +101,17 @@ steps outside the 18–27 °C envelope):
 
 What this shows:
 
-* **The report's 15–30% target is not reached.** The best seed gets 14.2% against the
-  Guideline-36-style baseline (upper CI end 15.4%); the five-seed mean is 9.2%. Against the
-  weaker PID and constant baselines the best seed exceeds 15%. Cooling is only ~5% of facility
-  energy in the calibrated plant, and the chiller term is nearly independent of setpoints in
-  that model, so the controllable share (pump, fan, free-air valve) is small.
+* **The report's 15–30% target is not reached, and cannot be in this model.**
+  `scripts/energy_headroom.py` computes an upper bound: at every step pick, inside the calibrated
+  physics, the cooling-minimising settings that respect the SLA (minimum pump and fan, free-air valve
+  fully open, warmest safe supply). That oracle saves **14.4%** of cooling energy vs the
+  Guideline-36-style baseline (95% CI 13.1–15.6%) and 15.2% vs PID, and the selected agent captures
+  **98.4%** of that headroom (−14.2%). Cooling is only ~5% of facility energy and, in the model
+  calibrated to Frontier, the chiller term is set by the IT heat load and is nearly independent of
+  setpoints, so only the pump/fan (a few kW) and the free-air valve (up to 30% of the chiller share)
+  are controllable. A 15–30% saving would need a plant whose cooling energy responds more strongly to
+  setpoints than Frontier's does. The five-seed mean (9.2%) is lower than the bound because of seed
+  variance, not because the bound is out of reach for a well-trained agent.
 * **The Lagrangian penalty alone did not deliver "no violations".** Without the shield only
   some seeds found a safe policy; with a soft penalty the SLA is met on average, not
   guaranteed. Adding a model-based **safety shield** (`src/ai/rl/safety_shield.py`) that vetoes
@@ -199,6 +205,7 @@ python src/ai/surrogate/train_fno.py && python src/ai/surrogate/evaluate_fno.py
 python scripts/calibrate_twin.py                       # twin fidelity + calibrated constants
 python scripts/run_rl_experiments.py --seeds 0 1 2 3 4 --episodes 1000 --workers 12
 python scripts/benchmark_rl.py                         # selects the agent, writes rl_benchmark.json
+python scripts/energy_headroom.py                      # physical upper bound on the saving
 python scripts/train_load_forecaster.py
 python scripts/evaluate_carbon_water.py
 python scripts/evaluate_transfer.py
@@ -210,8 +217,9 @@ python scripts/make_result_charts.py                   # presentation/*.png
 1. **Simulation only.** All control results are in the calibrated simulator. The twin matches
    measured Frontier data to 0.1–12% depending on the quantity, but no controller has run on a
    physical plant.
-2. **The 15–30% target is not met** (best seed 14.2%, mean 9.2% vs a Guideline-36-style rule);
-   the baseline is a purpose-written reset-schedule controller, not certified GL36.
+2. **The 15–30% target is not met** (best seed 14.2%, mean 9.2% vs a Guideline-36-style rule) and is
+   bounded at 14.4% by the calibrated model itself (§3); the baseline is a purpose-written
+   reset-schedule controller, not certified GL36.
 3. **The safety guarantee depends on the twin.** It is exact inside the simulator and degrades
    with model error; online calibration mitigates inlet-temperature drift only.
 4. **The FNO target is analytic** (see §2), not measured rack temperatures.

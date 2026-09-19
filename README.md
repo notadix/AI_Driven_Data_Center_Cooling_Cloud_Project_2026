@@ -1,6 +1,6 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![CI / Test Suite](https://img.shields.io/badge/pytest-320%20passed-brightgreen.svg)](testing/)
+[![CI / Test Suite](https://img.shields.io/badge/pytest-321%20passed-brightgreen.svg)](testing/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
 [![Three.js](https://img.shields.io/badge/three.js-0.183-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
@@ -25,7 +25,7 @@ calibrated simulator; nothing has run on a physical plant or on AWS.
 | Twin fidelity (held-out 30% of Frontier2023) | PUE 0.65%, inlet temp 0.08% MAPE; cooling power 12.4%, return 7.2%, outlet 8.4% | partly (≈2% target) |
 | FNO thermal surrogate | R² 0.9997, MAE 0.06 °C, 6.3 ms (target is an analytic thermal model, not sensors) | yes, with caveat |
 | IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence, 13.8% hour-of-day mean | modest gain |
-| Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield) | no (target 15–30%) |
+| Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical upper bound is -14.4%, so the agent captures 98%; the 15–30% target is not attainable in this twin | no (bounded by the model) |
 | Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | — |
 | Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) | small |
 | Water | Safe-PPO -4.2% to -7.3% vs baseline | — |
@@ -112,6 +112,13 @@ python scripts/run_backend_local.py
 - API Docs: `http://localhost:8000/docs`
 - Prometheus Metrics: `http://localhost:8000/metrics`
 - Live Explainability: `http://localhost:8000/api/v1/control/explain/DC-EAST-01/CRAC-01`
+- Carbon-aware schedule: `http://localhost:8000/api/v1/optimization/carbon-plan/DC-EAST-01`
+- Load forecast: `http://localhost:8000/api/v1/forecast/load/DC-EAST-01`
+- FNO thermal field: `http://localhost:8000/api/v1/forecast/thermal-field/DC-EAST-01/CRAC-01`
+
+The backend needs ~15 s to start (it loads PyTorch and the trained models); the console shows
+`BACKEND OFFLINE` and keeps the last real values until it is up. Append `?demo=1` to the console URL
+for an animated standalone preview with synthetic values.
 
 ### 2. Frontend Operator Console
 ```powershell
@@ -127,7 +134,12 @@ $env:PYTHONPATH="."
 python -m pytest testing/ -v
 ```
 
-### 4. Regenerate Benchmark Presentation Charts
+### 4. Reproduce the experiments
+Every number in `docs/RESULTS.md` comes from a script; the commands are listed in its section 8
+(twin calibration, multi-seed RL training and benchmark, energy-headroom bound, load forecaster,
+carbon/water and transfer evaluations).
+
+### 5. Regenerate Benchmark Presentation Charts
 ```powershell
 $env:PYTHONPATH="."
 $env:PYTHONIOENCODING="utf-8"
@@ -156,5 +168,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (320 tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (321 tests)
 ```

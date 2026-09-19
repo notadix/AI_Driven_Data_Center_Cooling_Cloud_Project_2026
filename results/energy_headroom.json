@@ -1,0 +1,39 @@
+{
+  "protocol": {
+    "episodes": 30,
+    "seeds": [
+      5000,
+      5029
+    ],
+    "oracle": "min pump/fan, valve fully open, warmest safe supply (shield-clipped)"
+  },
+  "cooling_kwh_per_day": {
+    "GL36_Rule": 25820,
+    "PID_Feedback": 25831,
+    "oracle_lower_bound": 22003,
+    "selected_safe_ppo": 22048
+  },
+  "max_possible_reduction_vs_gl36": {
+    "mean_pct": 14.383,
+    "ci95_pct": [
+      13.075,
+      15.583
+    ]
+  },
+  "max_possible_reduction_vs_pid": {
+    "mean_pct": 15.207,
+    "ci95_pct": [
+      14.584,
+      15.813
+    ]
+  },
+  "oracle_violation_rate": 0.0,
+  "selected_safe_ppo_reduction_vs_gl36": {
+    "mean_pct": 14.159,
+    "ci95_pct": [
+      12.773,
+      15.444
+    ]
+  },
+  "share_of_headroom_captured_by_selected_agent_pct": 98.4
+}

@@ -4,7 +4,7 @@
 
 ## Automated tests
 
-`python -m pytest testing/` -> **320 passed, 8 skipped, 0 failed.** The 8 skipped tests need a
+`python -m pytest testing/` -> **321 passed, 8 skipped, 0 failed.** The 8 skipped tests need a
 running LocalStack container and are skipped when it is unreachable (Docker was not running).
 
 | File | Covers |
