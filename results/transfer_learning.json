@@ -1,0 +1,408 @@
+{
+  "protocol": {
+    "source": "DC-EAST-01 (us-east-1)",
+    "target": "DC-EU-01 (eu-west-1)",
+    "source_episodes": 400,
+    "budgets": [
+      20,
+      60,
+      120
+    ],
+    "repeats": 3,
+    "benchmark_seeds": [
+      7000,
+      7029
+    ]
+  },
+  "gl36_on_target_kwh": 23411.9,
+  "runs": [
+    {
+      "repeat": 0,
+      "source_on_source": {
+        "cooling_kwh": 22210.5,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 14.06,
+          "ci95_pct": [
+            12.841,
+            15.176
+          ]
+        }
+      },
+      "zero_shot": {
+        "cooling_kwh": 20511.0,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 11.841,
+          "ci95_pct": [
+            10.537,
+            13.142
+          ]
+        }
+      },
+      "fine_tuned": {
+        "20": {
+          "cooling_kwh": 20447.0,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 12.063,
+            "ci95_pct": [
+              10.776,
+              13.358
+            ]
+          }
+        },
+        "60": {
+          "cooling_kwh": 20343.1,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 12.486,
+            "ci95_pct": [
+              11.219,
+              13.759
+            ]
+          }
+        },
+        "120": {
+          "cooling_kwh": 20386.1,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 12.315,
+            "ci95_pct": [
+              11.027,
+              13.601
+            ]
+          }
+        }
+      },
+      "scratch": {
+        "20": {
+          "cooling_kwh": 24234.8,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -4.59,
+            "ci95_pct": [
+              -6.605,
+              -2.591
+            ]
+          }
+        },
+        "60": {
+          "cooling_kwh": 25344.6,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -8.917,
+            "ci95_pct": [
+              -10.131,
+              -7.742
+            ]
+          }
+        },
+        "120": {
+          "cooling_kwh": 24858.8,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -6.525,
+            "ci95_pct": [
+              -7.896,
+              -5.196
+            ]
+          }
+        }
+      },
+      "reference_full_budget": {
+        "cooling_kwh": 23430.9,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": -0.96,
+          "ci95_pct": [
+            -2.518,
+            0.658
+          ]
+        }
+      }
+    },
+    {
+      "repeat": 1,
+      "source_on_source": {
+        "cooling_kwh": 24066.0,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 7.643,
+          "ci95_pct": [
+            6.57,
+            8.705
+          ]
+        }
+      },
+      "zero_shot": {
+        "cooling_kwh": 21678.6,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 7.265,
+          "ci95_pct": [
+            6.167,
+            8.386
+          ]
+        }
+      },
+      "fine_tuned": {
+        "20": {
+          "cooling_kwh": 22460.0,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 4.434,
+            "ci95_pct": [
+              3.566,
+              5.303
+            ]
+          }
+        },
+        "60": {
+          "cooling_kwh": 21873.8,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 6.782,
+            "ci95_pct": [
+              6.107,
+              7.451
+            ]
+          }
+        },
+        "120": {
+          "cooling_kwh": 22114.2,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 5.719,
+            "ci95_pct": [
+              5.159,
+              6.267
+            ]
+          }
+        }
+      },
+      "scratch": {
+        "20": {
+          "cooling_kwh": 23331.5,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -0.074,
+            "ci95_pct": [
+              -0.919,
+              0.705
+            ]
+          }
+        },
+        "60": {
+          "cooling_kwh": 21542.9,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 7.11,
+            "ci95_pct": [
+              5.483,
+              8.787
+            ]
+          }
+        },
+        "120": {
+          "cooling_kwh": 22537.1,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 3.203,
+            "ci95_pct": [
+              1.608,
+              4.656
+            ]
+          }
+        }
+      },
+      "reference_full_budget": {
+        "cooling_kwh": 23360.8,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": -0.25,
+          "ci95_pct": [
+            -1.826,
+            1.155
+          ]
+        }
+      }
+    },
+    {
+      "repeat": 2,
+      "source_on_source": {
+        "cooling_kwh": 23487.3,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 9.12,
+          "ci95_pct": [
+            7.949,
+            10.274
+          ]
+        }
+      },
+      "zero_shot": {
+        "cooling_kwh": 21088.6,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 9.258,
+          "ci95_pct": [
+            8.032,
+            10.507
+          ]
+        }
+      },
+      "fine_tuned": {
+        "20": {
+          "cooling_kwh": 21816.3,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 5.943,
+            "ci95_pct": [
+              4.409,
+              7.432
+            ]
+          }
+        },
+        "60": {
+          "cooling_kwh": 21717.0,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 6.455,
+            "ci95_pct": [
+              4.967,
+              7.844
+            ]
+          }
+        },
+        "120": {
+          "cooling_kwh": 21526.3,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": 7.351,
+            "ci95_pct": [
+              6.107,
+              8.555
+            ]
+          }
+        }
+      },
+      "scratch": {
+        "20": {
+          "cooling_kwh": 23976.2,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -2.856,
+            "ci95_pct": [
+              -3.702,
+              -2.058
+            ]
+          }
+        },
+        "60": {
+          "cooling_kwh": 23600.9,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -1.595,
+            "ci95_pct": [
+              -2.996,
+              -0.137
+            ]
+          }
+        },
+        "120": {
+          "cooling_kwh": 23801.7,
+          "violation_rate": 0.0,
+          "reduction_vs_gl36": {
+            "mean_pct": -2.318,
+            "ci95_pct": [
+              -3.575,
+              -1.127
+            ]
+          }
+        }
+      },
+      "reference_full_budget": {
+        "cooling_kwh": 22515.6,
+        "violation_rate": 0.0,
+        "reduction_vs_gl36": {
+          "mean_pct": 3.159,
+          "ci95_pct": [
+            1.904,
+            4.417
+          ]
+        }
+      }
+    }
+  ],
+  "summary": {
+    "zero_shot_reduction_pct": {
+      "mean": 9.455,
+      "std": 2.294
+    },
+    "zero_shot_violation_rate": {
+      "mean": 0.0,
+      "std": 0.0
+    },
+    "reference_reduction_pct": {
+      "mean": 0.65,
+      "std": 2.202
+    },
+    "by_budget": {
+      "20": {
+        "fine_tuned_reduction_pct": {
+          "mean": 7.48,
+          "std": 4.04
+        },
+        "scratch_reduction_pct": {
+          "mean": -2.507,
+          "std": 2.278
+        },
+        "fine_tuned_violation_rate": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "scratch_violation_rate": {
+          "mean": 0.0,
+          "std": 0.0
+        }
+      },
+      "60": {
+        "fine_tuned_reduction_pct": {
+          "mean": 8.574,
+          "std": 3.392
+        },
+        "scratch_reduction_pct": {
+          "mean": -1.134,
+          "std": 8.023
+        },
+        "fine_tuned_violation_rate": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "scratch_violation_rate": {
+          "mean": 0.0,
+          "std": 0.0
+        }
+      },
+      "120": {
+        "fine_tuned_reduction_pct": {
+          "mean": 8.462,
+          "std": 3.435
+        },
+        "scratch_reduction_pct": {
+          "mean": -1.88,
+          "std": 4.879
+        },
+        "fine_tuned_violation_rate": {
+          "mean": 0.0,
+          "std": 0.0
+        },
+        "scratch_violation_rate": {
+          "mean": 0.0,
+          "std": 0.0
+        }
+      }
+    }
+  }
+}

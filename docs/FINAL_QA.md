@@ -1,81 +1,38 @@
-# Final End-to-End Integration QA Audit Report
+# Final QA Report
 
-**Project**: AI-Driven Cloud-Native Hybrid Cooling Digital Twin for Sustainable Data Centers  
-**Auditor**: Govind Innani (`GOVIND2425`, `govindinnani2006@gmail.com`)  
-**Git Branch**: `feature/GovindInnani`  
-**Date**: September 19, 2026  
-**Final Status**: **ALL CHECKS PASSED (184 Tests Green, Zero Failures, Zero Breaking Changes)**
+**Date**: 2026-09-20  ·  **Branch**: `main`
 
----
+## Automated tests
 
-## 1. Automated Test Suite Audit
+`python -m pytest testing/` -> **316 passed, 8 skipped, 0 failed.** The 8 skipped tests need a
+running LocalStack container and are skipped when it is unreachable (Docker was not running).
 
-Ran comprehensive Pytest test suite across all subsystems:
-```powershell
-$env:PYTHONPATH="."
-python -m pytest testing/ -v
-```
+| File | Covers |
+|---|---|
+| `test_ai_models.py` | FNO, Safe-PPO, baselines (incl. Guideline-36-style), observation normalisation, unconstrained mode |
+| `test_digital_twin_env.py` | Gym physics, ASHRAE bounds, reward |
+| `test_backend_iot.py` | REST/WebSocket API, multi-facility topology and control isolation, Prometheus `/metrics`, LocalStack wiring (skipped when offline) |
+| `test_bugfix_regressions.py` | inlet floor, 404s, heartbeat, per-facility actuation, metrics = telemetry, agent observation scale, valve mapping, history returns newest |
+| `test_twin_fidelity.py` | calibrated physics, shared env/IoT physics, drift-detector reference |
+| `test_rl_benchmark.py` | paired benchmark protocol, GL36 vs constant, checkpoint selection |
+| `test_safety_shield.py` | shield keeps random/worst-case policies inside the SLA; live loop applies it |
+| `test_carbon_water.py` | duplicated carbon/climate/wet-bulb models stay in sync, water model, scheduler LP properties, carbon-plan API |
+| `test_predictive_layer.py` | load-forecaster metrics/model, FNO service, forecast and thermal-field APIs |
+| `test_fault_tolerance.py` | sensor guard, control loop under corrupted telemetry, online adaptation to plant drift |
+| `test_explainability_api.py`, `test_e2e_system.py` | live attribution endpoint; end-to-end telemetry loop |
 
-### Results by Test Module:
-| Test Module | Scope / Coverage | Test Count | Status |
-|---|---|:---:|:---:|
-| `testing/test_ai_models.py` | 2D FNO surrogate, Safe-PPO CMDP Lagrangian formulation, SageMaker MLOps handler | 26 passed | **PASS** |
-| `testing/test_digital_twin_env.py` | Gymnasium sandbox physics, ASHRAE thermal SLA bounds, reward functions | 16 passed | **PASS** |
-| `testing/test_backend_iot.py` | FastAPI REST endpoints, WebSockets, multi-facility control isolation, Prometheus `/metrics` | 124 passed, 8 skipped | **PASS** |
-| `testing/test_explainability_api.py` | Live SHAP / saliency feature attributions, 10D observation normalization, 404 handling | 5 passed | **PASS** |
-| `testing/test_e2e_system.py` | End-to-end closed loop, 3D scene schemas, CloudWatch alarms, carbon/weather lambdas | 13 passed | **PASS** |
-| **TOTAL** | **Full System Coverage** | **184 passed, 8 skipped** | **100% PASS** |
+## Frontend
 
-*Note on skipped tests: 8 tests in `test_backend_iot.py` for live LocalStack container interaction are skipped when Docker is offline, matching project design.*
+* `npm run build` in `src/frontend`: succeeds.
+* Browser session against the running backend (three facilities): live heatmap, carbon dial per
+  facility, control panel and emergency override (CRAC stays in manual), rack drawer, SHAP panel,
+  carbon-aware schedule panel and predictive panel all render with data; no console errors while the
+  backend was up. (Errors seen while the backend was still starting are the WebSocket retry loop.)
 
----
+## Not verified
 
-## 2. API & Real-Time Telemetry Interface Audit
+* **LocalStack / AWS:** the AWS-mode code was not run against LocalStack (Docker not running) or
+  AWS; see `docs/LOCALSTACK.md` and `docs/evidence/step_functions_run.md`.
+* No controller has run on a physical plant.
 
-| Endpoint | Method | Facility / Target | Expected Behavior | Observed Result | Status |
-|---|:---:|---|---|---|:---:|
-| `/metrics` | `GET` | All facilities | Scrape-time Prometheus metrics exposition | `200 OK`, `cooling_crac_supply_temp_c`, `cooling_facility_pue` exported | **PASS** |
-| `/api/v1/control/explain/DC-EAST-01/CRAC-01` | `GET` | DC-EAST-01 / CRAC-01 | 10D Safe-PPO feature attributions | `200 OK`, 10 keys, top positive `flow_lpm` (+0.495), top negative `grid_carbon_gco2` (-0.380) | **PASS** |
-| `/api/v1/control/explain/DC-WEST-02/CRAC-01` | `GET` | DC-WEST-02 / CRAC-01 | Isolated facility attributions | `200 OK`, valid bounded attributions | **PASS** |
-| `/api/v1/control/explain/DC-EU-01/CRAC-01` | `GET` | DC-EU-01 / CRAC-01 | Cold-climate free-air attributions | `200 OK`, valid bounded attributions | **PASS** |
-| `/api/v1/control/explain/DC-UNKNOWN/CRAC-01` | `GET` | Non-existent facility | Topology validation gate | `404 Not Found`, `"not found in simulator topology"` | **PASS** |
-| `/api/v1/control/status/{facility_id}` | `GET` | DC-EAST-01 | Multi-CRAC state and last actions | `200 OK`, reports CRAC-01 and CRAC-02 state | **PASS** |
-| `/api/v1/control/mode/{facility_id}/{crac_id}` | `POST` | DC-EAST-01 / CRAC-01 | Auto/manual mode toggle | `200 OK`, per-facility isolation verified | **PASS** |
-| `/ws/stream?facility_id=DC-EAST-01` | `WS` | DC-EAST-01 | 10Hz streaming telemetry | Connected, heartbeats active, aggregate power stable | **PASS** |
-
----
-
-## 3. Frontend & 3D Digital Twin UI/UX Audit
-
-| Feature Area | Component | Verification Procedure | Observed Outcome | Status |
-|---|---|---|---|:---:|
-| **Production Build** | Vite / Rollup | `npm run build` in `src/frontend` | `✓ built in 47.4s`, zero syntax or bundle errors, 692 kB bundle | **PASS** |
-| **3D Thermal Heatmap** | `ThreeDHeatmap.jsx` | WebGL canvas with 64 server racks | 8×8 grid with dynamic thermal color gradients (Blue/Green/Amber/Red) | **PASS** |
-| **Rack Inspection** | `Dashboard.jsx` | Clicking individual rack in 3D scene | Inspection modal opens showing inlet temp, outlet temp, CDU mapping, and SiteWise asset ID | **PASS** |
-| **Live SHAP Panel** | `SHAPExplanation.jsx` | Polling `/explain/{facility}/{crac}` | Dynamic horizontal bars update live, dynamic rationale generated, zero hardcoded values | **PASS** |
-| **PUE & WUE Dials** | `PUEGauge.jsx` | Real-time gauge rendering | Live facility PUE dial and psychrometric WUE display | **PASS** |
-| **Carbon Tracker** | `CarbonTracker.jsx` | Marginal grid intensity | Real-time $g\text{CO}_2\text{e}/\text{kWh}$ dial and solar/wind fuel mix breakdown | **PASS** |
-| **Multi-Facility Switching** | Header Selector | Switch DC-EAST-01 $\to$ DC-WEST-02 $\to$ DC-EU-01 | Clean WebSocket teardown and reconnection, zero ghost sockets, aggregate power drops stale state | **PASS** |
-| **Browser Console** | Developer Tools | Long-running stream monitoring | Zero WebGL context loss warnings, zero unhandled promise rejections, zero React duplicate key errors | **PASS** |
-
----
-
-## 4. Benchmark Artifacts & Visualizations Audit
-
-| File | Type | Origin / Source | Verification | Status |
-|---|---|---|---|:---:|
-| `presentation/rl_benchmark_comparison.png` | Image (300 DPI) | `results/rl_benchmark.json` | Generated by `scripts/make_result_charts.py` | **PASS** |
-| `presentation/sla_compliance.png` | Image (300 DPI) | `results/rl_benchmark.json` | Generated by `scripts/make_result_charts.py` | **PASS** |
-| `presentation/fno_metrics.png` | Image (300 DPI) | `results/fno_eval_metrics.json` | Generated by `scripts/make_result_charts.py` | **PASS** |
-| `presentation/pue_trajectory.png` | Image (300 DPI) | Real `DataCenterCoolingEnv` rollout (seed 42) | Generated by `scripts/make_result_charts.py` | **PASS** |
-| `presentation/README.md` | Markdown | Documentation | Reproduction instructions documented | **PASS** |
-| `docs/RESULTS.md` | Markdown | Measured results report | Full past-tense empirical reporting with 4 caveats | **PASS** |
-
----
-
-## 5. Team Deliverable Alignment & Handoff Readiness
-
-1. **Branch Lineage**: `feature/GovindInnani` retains all commits from `feature/AdityaRoy` and `feature/SnigdaChandanala`.
-2. **Commit Isolation**: All new commits authored strictly as `GOVIND2425 <govindinnani2006@gmail.com>`.
-3. **Clean Working Tree**: Zero untracked temp files or secrets.
-4. **Handoff Target**: Ready for project lead **Aditya Roy (`notadix`)** to review and merge `feature/GovindInnani` into `main`.
+Measured results and their limitations: `docs/RESULTS.md`.

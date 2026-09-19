@@ -1,6 +1,6 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![CI / Test Suite](https://img.shields.io/badge/pytest-206%20passed-brightgreen.svg)](testing/)
+[![CI / Test Suite](https://img.shields.io/badge/pytest-316%20passed-brightgreen.svg)](testing/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
 [![Three.js](https://img.shields.io/badge/three.js-0.183-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
@@ -13,22 +13,28 @@
 
 ---
 
-## Measured Benchmark Results Summary
+## Measured Results Summary
 
-All results are empirically measured from trained model checkpoints and recorded in `results/`:
+Everything below is measured by a script in this repo and recorded in `results/`
+(see **[`docs/RESULTS.md`](docs/RESULTS.md)** for method, per-seed numbers and limitations;
+figures are in **[`presentation/`](presentation/)**). All control results are from the
+calibrated simulator; nothing has run on a physical plant or on AWS.
 
-| System Component | Evaluated Metric | Baseline / Target | Safe-PPO / FNO Measured | Improvement |
-|---|---|:---:|:---:|:---:|
-| **Thermal Physics Surrogate** | $R^2$ Accuracy (2D grid) | $\ge 0.9500$ | **0.9997** | Target met |
-| | Mean Absolute Error (MAE) | $\le 0.4000^\circ\text{C}$ | **0.0605 °C** | Target met |
-| | Inference Latency (CPU) | $< 100\text{ ms}$ | **6.26 ms (P95: 9.07 ms)** | Target met |
-| **Closed-Loop RL Controller** | Mean Facility PUE | 1.1225 (ASHRAE Rule) | **1.0471** | PUE 6.7% lower |
-| | Steps violating ASHRAE inlet envelope | 14.7% (ASHRAE Rule) | **0.0%** | 0 violating steps in 5 episodes |
-| | Cumulative Reward | -439.40 (ASHRAE Rule) | **-37.54** | **+401.86 reward gain** |
-| | Lagrangian Safety Cost | $\le 0.0500$ Limit | **0.0000** | Within limit |
+| Report objective | Measured result | Target met? |
+|---|---|:---:|
+| Twin fidelity (held-out 30% of Frontier2023) | PUE 0.65%, inlet temp 0.08% MAPE; cooling power 12.4%, return 7.2%, outlet 8.4% | partly (≈2% target) |
+| FNO thermal surrogate | R² 0.9997, MAE 0.06 °C, 6.3 ms (target is an analytic thermal model, not sensors) | yes, with caveat |
+| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence, 13.8% hour-of-day mean | modest gain |
+| Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield) | no (target 15–30%) |
+| Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | — |
+| Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) | small |
+| Water | Safe-PPO -4.2% to -7.3% vs baseline | — |
+| Transfer across facilities | zero-shot -9.5% with 0 violations | yes |
+| Fault tolerance | sensor-fault guard + online calibration restore safety under drift | yes |
+| AWS deployment / LocalStack live run | **not done** (Docker not run) | no |
 
-RL numbers come from one training run, evaluated for 5 episodes in the Gymnasium environment; the "ASHRAE rule" baseline is a constant setpoint, not a full Guideline 36 sequence. Live LocalStack/AWS runs are not yet done. Detailed breakdown and caveats: 📄 **[`docs/RESULTS.md`](docs/RESULTS.md)**  
-Publication-ready visual figures: 📊 **[`presentation/`](presentation/)**
+The "Guideline-36-style" baseline is a reset-schedule controller written for this project, not a
+certified ASHRAE Guideline 36 implementation. RL results are seed-sensitive (3.4% to 14.2%).
 
 ---
 
@@ -37,7 +43,7 @@ Data centers consume 1–2% of global electricity, with mechanical cooling accou
 
 This project delivers an end-to-end cloud-native framework uniting:
 1. **Fourier Neural Operator (FNO)** 2D physics surrogates for sub-10ms thermal field estimation.
-2. **Safe Reinforcement Learning (Safe-PPO)** with Lagrangian constraints for closed-loop setpoint optimization under strict ASHRAE TC 9.9 thermal envelopes (18°C – 27°C).
+2. **Safe Reinforcement Learning (Safe-PPO)** with Lagrangian constraints and a model-based safety shield for closed-loop setpoint optimization under strict ASHRAE TC 9.9 thermal envelopes (18°C – 27°C).
 3. **Multi-Objective Sustainability**: Dynamic free-air/chilled-water valve split optimization balancing Water Usage Effectiveness (WUE) and real-time grid carbon intensity ($g\text{CO}_2\text{e}/\text{kWh}$).
 4. **Cloud-Native Digital Twin Platform**: Multi-facility telemetry streaming over AWS IoT Core, FastAPI backend, Prometheus observability, and a 3D Three.js operator console.
 
@@ -150,5 +156,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (206 tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (316 tests)
 ```

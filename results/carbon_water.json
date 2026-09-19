@@ -1,0 +1,687 @@
+{
+  "protocol": {
+    "days_per_cell": 20,
+    "seeds": [
+      6000,
+      6019
+    ],
+    "flexible_fraction": 0.2,
+    "max_delay_h": 8,
+    "capacity_factor": 1.15,
+    "base_load": "Frontier2023 hour-of-day IT shape scaled to a 19 MW mean",
+    "environment": "region climate (ambient) and grid-carbon profile per facility; the agent runs behind its safety shield",
+    "emissions": "facility emissions = (IT + cooling energy) x grid carbon intensity",
+    "note": "Flexible-workload share and delay window are assumptions (no job trace is available); see the sweep."
+  },
+  "facilities": {
+    "DC-EAST-01": {
+      "region": "us-east-1",
+      "mean_carbon_gco2_kwh": 346.3,
+      "carbon_swing_gco2_kwh": 111.2,
+      "scheduler_plan": {
+        "emissions_reduction_pct": 1.225,
+        "moved_energy_kwh": 75650.7,
+        "baseline_emissions_kg": 165877.06,
+        "shifted_emissions_kg": 163845.33
+      },
+      "cells": {
+        "GL36_Rule/baseline": {
+          "emissions_kg": 166.674,
+          "water_l": 48590.362,
+          "cooling_kwh": 24860.809,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.1066
+        },
+        "GL36_Rule/shifted": {
+          "emissions_kg": 164.559,
+          "water_l": 47807.941,
+          "cooling_kwh": 24620.38,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.1049
+        },
+        "Safe_PPO/baseline": {
+          "emissions_kg": 165.384,
+          "water_l": 44919.552,
+          "cooling_kwh": 21169.371,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0985
+        },
+        "Safe_PPO/shifted": {
+          "emissions_kg": 163.308,
+          "water_l": 44298.34,
+          "cooling_kwh": 20984.162,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0972
+        }
+      },
+      "load_shifting_effect": {
+        "GL36_Rule": {
+          "emissions_kg": {
+            "mean_pct": 1.269,
+            "ci95_pct": [
+              1.253,
+              1.287
+            ]
+          },
+          "water_l": {
+            "mean_pct": 1.566,
+            "ci95_pct": [
+              1.317,
+              1.785
+            ]
+          },
+          "cooling_kwh": {
+            "mean_pct": 0.948,
+            "ci95_pct": [
+              0.801,
+              1.071
+            ]
+          }
+        },
+        "Safe_PPO": {
+          "emissions_kg": {
+            "mean_pct": 1.255,
+            "ci95_pct": [
+              1.235,
+              1.277
+            ]
+          },
+          "water_l": {
+            "mean_pct": 1.288,
+            "ci95_pct": [
+              0.957,
+              1.607
+            ]
+          },
+          "cooling_kwh": {
+            "mean_pct": 0.818,
+            "ci95_pct": [
+              0.55,
+              1.088
+            ]
+          }
+        }
+      },
+      "agent_vs_gl36_baseline_profile": {
+        "emissions_kg": {
+          "mean_pct": 0.773,
+          "ci95_pct": [
+            0.697,
+            0.843
+          ]
+        },
+        "water_l": {
+          "mean_pct": 7.267,
+          "ci95_pct": [
+            5.954,
+            8.482
+          ]
+        },
+        "cooling_kwh": {
+          "mean_pct": 14.719,
+          "ci95_pct": [
+            13.598,
+            15.748
+          ]
+        }
+      },
+      "agent_plus_shifting_vs_gl36_baseline": {
+        "emissions_kg": {
+          "mean_pct": 2.019,
+          "ci95_pct": [
+            1.929,
+            2.102
+          ]
+        },
+        "water_l": {
+          "mean_pct": 8.443,
+          "ci95_pct": [
+            6.867,
+            9.902
+          ]
+        },
+        "cooling_kwh": {
+          "mean_pct": 15.407,
+          "ci95_pct": [
+            14.12,
+            16.586
+          ]
+        }
+      },
+      "scheduler_sweep": [
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 0.472
+        },
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 0.705
+        },
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 0.809
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 0.911
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 1.225
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 1.238
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 1.308
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 1.611
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 1.622
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 1.947
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 2.336
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 2.336
+        }
+      ],
+      "carbon_water_tradeoff": [
+        {
+          "water_weight_gco2_per_l": 0.0,
+          "emissions_reduction_pct": 1.611,
+          "water_change_pct": -0.206
+        },
+        {
+          "water_weight_gco2_per_l": 500.0,
+          "emissions_reduction_pct": 1.61,
+          "water_change_pct": -0.392
+        },
+        {
+          "water_weight_gco2_per_l": 2000.0,
+          "emissions_reduction_pct": 1.538,
+          "water_change_pct": -0.58
+        },
+        {
+          "water_weight_gco2_per_l": 8000.0,
+          "emissions_reduction_pct": 0.858,
+          "water_change_pct": -1.242
+        }
+      ]
+    },
+    "DC-WEST-02": {
+      "region": "us-west-2",
+      "mean_carbon_gco2_kwh": 139.7,
+      "carbon_swing_gco2_kwh": 83.9,
+      "scheduler_plan": {
+        "emissions_reduction_pct": 2.546,
+        "moved_energy_kwh": 72676.5,
+        "baseline_emissions_kg": 67014.66,
+        "shifted_emissions_kg": 65308.47
+      },
+      "cells": {
+        "GL36_Rule/baseline": {
+          "emissions_kg": 68.607,
+          "water_l": 44833.082,
+          "cooling_kwh": 23553.131,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0983
+        },
+        "GL36_Rule/shifted": {
+          "emissions_kg": 67.182,
+          "water_l": 44292.775,
+          "cooling_kwh": 23391.424,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0971
+        },
+        "Safe_PPO/baseline": {
+          "emissions_kg": 68.135,
+          "water_l": 42108.142,
+          "cooling_kwh": 20315.881,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0924
+        },
+        "Safe_PPO/shifted": {
+          "emissions_kg": 66.73,
+          "water_l": 41719.244,
+          "cooling_kwh": 20203.179,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0915
+        }
+      },
+      "load_shifting_effect": {
+        "GL36_Rule": {
+          "emissions_kg": {
+            "mean_pct": 2.076,
+            "ci95_pct": [
+              2.05,
+              2.102
+            ]
+          },
+          "water_l": {
+            "mean_pct": 1.14,
+            "ci95_pct": [
+              0.833,
+              1.425
+            ]
+          },
+          "cooling_kwh": {
+            "mean_pct": 0.656,
+            "ci95_pct": [
+              0.451,
+              0.844
+            ]
+          }
+        },
+        "Safe_PPO": {
+          "emissions_kg": {
+            "mean_pct": 2.062,
+            "ci95_pct": [
+              2.04,
+              2.084
+            ]
+          },
+          "water_l": {
+            "mean_pct": 0.849,
+            "ci95_pct": [
+              0.556,
+              1.15
+            ]
+          },
+          "cooling_kwh": {
+            "mean_pct": 0.516,
+            "ci95_pct": [
+              0.3,
+              0.755
+            ]
+          }
+        }
+      },
+      "agent_vs_gl36_baseline_profile": {
+        "emissions_kg": {
+          "mean_pct": 0.686,
+          "ci95_pct": [
+            0.596,
+            0.773
+          ]
+        },
+        "water_l": {
+          "mean_pct": 5.617,
+          "ci95_pct": [
+            3.967,
+            7.217
+          ]
+        },
+        "cooling_kwh": {
+          "mean_pct": 13.503,
+          "ci95_pct": [
+            12.119,
+            14.812
+          ]
+        }
+      },
+      "agent_plus_shifting_vs_gl36_baseline": {
+        "emissions_kg": {
+          "mean_pct": 2.734,
+          "ci95_pct": [
+            2.636,
+            2.828
+          ]
+        },
+        "water_l": {
+          "mean_pct": 6.394,
+          "ci95_pct": [
+            4.467,
+            8.262
+          ]
+        },
+        "cooling_kwh": {
+          "mean_pct": 13.937,
+          "ci95_pct": [
+            12.402,
+            15.425
+          ]
+        }
+      },
+      "scheduler_sweep": [
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 0.91
+        },
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 1.463
+        },
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 1.758
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 1.751
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 2.546
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 2.634
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 2.499
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 3.234
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 3.235
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 3.67
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 4.433
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 4.433
+        }
+      ],
+      "carbon_water_tradeoff": [
+        {
+          "water_weight_gco2_per_l": 0.0,
+          "emissions_reduction_pct": 3.234,
+          "water_change_pct": 0.175
+        },
+        {
+          "water_weight_gco2_per_l": 500.0,
+          "emissions_reduction_pct": 3.234,
+          "water_change_pct": 0.175
+        },
+        {
+          "water_weight_gco2_per_l": 2000.0,
+          "emissions_reduction_pct": 3.148,
+          "water_change_pct": 0.024
+        },
+        {
+          "water_weight_gco2_per_l": 8000.0,
+          "emissions_reduction_pct": 2.232,
+          "water_change_pct": -0.261
+        }
+      ]
+    },
+    "DC-EU-01": {
+      "region": "eu-west-1",
+      "mean_carbon_gco2_kwh": 212.0,
+      "carbon_swing_gco2_kwh": 93.3,
+      "scheduler_plan": {
+        "emissions_reduction_pct": 1.805,
+        "moved_energy_kwh": 76416.0,
+        "baseline_emissions_kg": 101625.73,
+        "shifted_emissions_kg": 99791.84
+      },
+      "cells": {
+        "GL36_Rule/baseline": {
+          "emissions_kg": 101.653,
+          "water_l": 41800.98,
+          "cooling_kwh": 22504.985,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.000347,
+          "wue_l_per_kwh": 0.0917
+        },
+        "GL36_Rule/shifted": {
+          "emissions_kg": 99.805,
+          "water_l": 41403.941,
+          "cooling_kwh": 22388.075,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.000347,
+          "wue_l_per_kwh": 0.0908
+        },
+        "Safe_PPO/baseline": {
+          "emissions_kg": 101.036,
+          "water_l": 39868.706,
+          "cooling_kwh": 19661.322,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0874
+        },
+        "Safe_PPO/shifted": {
+          "emissions_kg": 99.215,
+          "water_l": 39635.389,
+          "cooling_kwh": 19601.129,
+          "it_kwh": 455953.634,
+          "violation_rate": 0.0,
+          "wue_l_per_kwh": 0.0869
+        }
+      },
+      "load_shifting_effect": {
+        "GL36_Rule": {
+          "emissions_kg": {
+            "mean_pct": 1.818,
+            "ci95_pct": [
+              1.793,
+              1.843
+            ]
+          },
+          "water_l": {
+            "mean_pct": 0.882,
+            "ci95_pct": [
+              0.567,
+              1.192
+            ]
+          },
+          "cooling_kwh": {
+            "mean_pct": 0.492,
+            "ci95_pct": [
+              0.288,
+              0.69
+            ]
+          }
+        },
+        "Safe_PPO": {
+          "emissions_kg": {
+            "mean_pct": 1.802,
+            "ci95_pct": [
+              1.78,
+              1.825
+            ]
+          },
+          "water_l": {
+            "mean_pct": 0.543,
+            "ci95_pct": [
+              0.284,
+              0.815
+            ]
+          },
+          "cooling_kwh": {
+            "mean_pct": 0.291,
+            "ci95_pct": [
+              0.134,
+              0.47
+            ]
+          }
+        }
+      },
+      "agent_vs_gl36_baseline_profile": {
+        "emissions_kg": {
+          "mean_pct": 0.606,
+          "ci95_pct": [
+            0.521,
+            0.692
+          ]
+        },
+        "water_l": {
+          "mean_pct": 4.221,
+          "ci95_pct": [
+            2.588,
+            5.869
+          ]
+        },
+        "cooling_kwh": {
+          "mean_pct": 12.41,
+          "ci95_pct": [
+            11.028,
+            13.809
+          ]
+        }
+      },
+      "agent_plus_shifting_vs_gl36_baseline": {
+        "emissions_kg": {
+          "mean_pct": 2.398,
+          "ci95_pct": [
+            2.307,
+            2.488
+          ]
+        },
+        "water_l": {
+          "mean_pct": 4.718,
+          "ci95_pct": [
+            2.865,
+            6.616
+          ]
+        },
+        "cooling_kwh": {
+          "mean_pct": 12.654,
+          "ci95_pct": [
+            11.147,
+            14.183
+          ]
+        }
+      },
+      "scheduler_sweep": [
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 0.661
+        },
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 1.039
+        },
+        {
+          "flexible_fraction": 0.1,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 1.224
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 1.274
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 1.805
+        },
+        {
+          "flexible_fraction": 0.2,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 1.839
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 1.824
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 2.316
+        },
+        {
+          "flexible_fraction": 0.3,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 2.316
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 4,
+          "emissions_reduction_pct": 2.685
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 8,
+          "emissions_reduction_pct": 3.186
+        },
+        {
+          "flexible_fraction": 0.5,
+          "max_delay_h": 12,
+          "emissions_reduction_pct": 3.186
+        }
+      ],
+      "carbon_water_tradeoff": [
+        {
+          "water_weight_gco2_per_l": 0.0,
+          "emissions_reduction_pct": 2.316,
+          "water_change_pct": 0.0
+        },
+        {
+          "water_weight_gco2_per_l": 500.0,
+          "emissions_reduction_pct": 2.316,
+          "water_change_pct": 0.0
+        },
+        {
+          "water_weight_gco2_per_l": 2000.0,
+          "emissions_reduction_pct": 2.316,
+          "water_change_pct": 0.0
+        },
+        {
+          "water_weight_gco2_per_l": 8000.0,
+          "emissions_reduction_pct": 2.316,
+          "water_change_pct": 0.0
+        }
+      ]
+    }
+  }
+}

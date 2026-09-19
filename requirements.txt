@@ -1,6 +1,6 @@
 # AI-Driven Cooling Digital Twin — backend & AI runtime dependencies.
 # Generated from actual imports across src/, database/, dataset/, testing/,
-# pinned to the versions this repo's test suite (165 passed, 3 skipped) runs against.
+# pinned to the versions this repo's test suite (316 passed, 8 skipped) runs against.
 
 # Backend / API
 fastapi>=0.138.0
@@ -17,6 +17,8 @@ torch>=2.12.1
 gymnasium>=1.3.0
 numpy>=2.5.0
 scikit-learn>=1.9.0
+scipy>=1.14.0            # calibration fit, carbon-aware scheduler LP
+matplotlib>=3.9.0        # scripts/make_result_charts.py
 
 # Data pipeline
 pandas>=3.0.5
