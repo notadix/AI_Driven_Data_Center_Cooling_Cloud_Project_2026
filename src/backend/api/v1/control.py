@@ -310,3 +310,105 @@ async def set_mode(
         "current_mode": body.mode,
         "changed_at": _ts(),
     })
+
+
+# ---------------------------------------------------------------------------
+# GET /explain/{facility_id}/{crac_id}  — Live Safe-PPO Feature Attributions
+# ---------------------------------------------------------------------------
+
+@router.get("/explain/{facility_id}/{crac_id}", summary="Live feature attributions for CRAC policy control decisions")
+async def get_explainability(
+    facility_id: str = Path(..., description="Facility ID, e.g. 'DC-EAST-01'"),
+    crac_id: str = Path(..., description="CRAC unit ID, e.g. 'CRAC-01'"),
+) -> JSONResponse:
+    _validate_facility_crac(facility_id, crac_id)
+
+    sim = get_simulator()
+    state = sim.get_simulator_state(facility_id, crac_id)
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"CRAC '{crac_id}' not found in simulator topology for facility '{facility_id}'.",
+        )
+
+    # Fetch latest telemetry from bus, or construct from simulator state
+    from src.aws.iot.iot_publisher import local_bus
+    from src.ai.rl.explainability import compute_feature_attribution
+    from src.backend.services.auto_control import _build_obs, get_auto_control_loop
+
+    topic = f"datacenter/cooling/telemetry/{facility_id}/{crac_id}"
+    payload = local_bus.get_latest(topic)
+    if not payload:
+        payload = {
+            "grid_carbon_gco2_kwh": 285.0,
+            "fws_supply_temp_c": state.supply_c,
+            "return_temp_c": state.return_c,
+            "flow_rate_lpm": state.flow_lpm,
+            "server_inlet_temp_c": state.server_inlet_c,
+            "server_outlet_temp_c": state.server_outlet_c,
+            "cooling_power_mw": state.cooling_kw / 1000.0,
+            "pue": state.pue,
+        }
+
+    obs = _build_obs(state, payload)
+    if obs is None:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "unavailable",
+                "reason": "Incomplete telemetry payload to form 10-dimensional observation vector.",
+                "data": {
+                    "facility_id": facility_id,
+                    "crac_id": crac_id,
+                    "available": False,
+                },
+            },
+        )
+
+    auto_loop = get_auto_control_loop()
+    agent = auto_loop._agent
+
+    if agent is None:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "unavailable",
+                "reason": "No trained Safe-PPO checkpoint loaded; fallback controller in use.",
+                "data": {
+                    "facility_id": facility_id,
+                    "crac_id": crac_id,
+                    "available": False,
+                },
+            },
+        )
+
+    try:
+        import torch
+        attributions = compute_feature_attribution(agent, obs)
+        with torch.no_grad():
+            s = torch.tensor(obs, dtype=torch.float32, device=agent.device).unsqueeze(0)
+            _, _, v_r, v_c = agent.ac(s)
+            v_cost = float(v_c.item())
+            v_reward = float(v_r.item())
+
+        return _ok({
+            "facility_id": facility_id,
+            "crac_id": crac_id,
+            "available": True,
+            "timestamp": _ts(),
+            "attributions": attributions,
+            "v_cost": round(v_cost, 4),
+            "v_reward": round(v_reward, 4),
+            "cost_limit": 0.05,
+            "safety_status": "NORMAL" if v_cost <= 0.05 else "SLA_BREACH",
+        })
+    except Exception as e:
+        logger.error("Explainability computation error for %s/%s: %s", facility_id, crac_id, e)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "detail": f"Failed to compute feature attributions: {str(e)}",
+            },
+        )
+
