@@ -23,7 +23,7 @@ export default function OperatorControlPanel({
   const [valveSplit, setValveSplit] = useState(telemetry.valve_split_pct || 40.0);
   const [submitting, setSubmitting] = useState(false);
   const [submittedFeedback, setSubmittedFeedback] = useState(null);
-  const [emergencyActive, setEmergencyActive] = useState(false);
+  const [feedbackError, setFeedbackError] = useState(false);
 
   const isManual = actualMode === 'manual';
 
@@ -49,12 +49,27 @@ export default function OperatorControlPanel({
     };
   }, [selectedCrac, facilityId]);
 
+  const isOk = (res) => res?.status === 'ok';
+
+  const showFeedback = (text, error = false, ms = 3000) => {
+    setFeedbackError(error);
+    setSubmittedFeedback(text);
+    setTimeout(() => setSubmittedFeedback(null), ms);
+  };
+
+  const errorText = (res) =>
+    typeof res?.detail === 'string' ? res.detail : 'Request rejected by the backend';
+
   const handleModeToggle = async () => {
     const nextMode = isManual ? 'auto' : 'manual';
-    if (onModeChange) {
-      await onModeChange(selectedCrac, nextMode);
+    const res = onModeChange ? await onModeChange(selectedCrac, nextMode) : { status: 'ok' };
+    // Only reflect the new mode if the backend accepted it (the status poll
+    // would otherwise flip it back a few seconds later).
+    if (isOk(res)) {
+      setActualMode(nextMode);
+    } else {
+      showFeedback(errorText(res), true);
     }
-    setActualMode(nextMode);
   };
 
   const handleSubmit = async () => {
@@ -69,18 +84,29 @@ export default function OperatorControlPanel({
         source: 'manual',
         safety_status: 'NORMAL',
       };
-      if (onSubmitAction) {
-        await onSubmitAction(selectedCrac, payload);
+      const res = onSubmitAction ? await onSubmitAction(selectedCrac, payload) : { status: 'ok' };
+      if (isOk(res)) {
+        showFeedback('Setpoints dispatched successfully!');
+      } else {
+        showFeedback(errorText(res), true);
       }
-      setSubmittedFeedback('Setpoints dispatched successfully!');
-      setTimeout(() => setSubmittedFeedback(null), 3000);
     } finally {
       setSubmitting(false);
     }
   };
 
   const triggerEmergencyCooling = async () => {
-    setEmergencyActive(true);
+    // The auto-control loop re-applies its own action to every CRAC in
+    // 'auto' mode every couple of seconds, which would silently undo the
+    // emergency override -- take the CRAC out of auto first.
+    if (!isManual && onModeChange) {
+      const modeRes = await onModeChange(selectedCrac, 'manual');
+      if (!isOk(modeRes)) {
+        showFeedback(errorText(modeRes), true, 5000);
+        return;
+      }
+      setActualMode('manual');
+    }
     // Force maximum cooling override
     const payload = {
       delta_supply_c: -2.0,
@@ -90,10 +116,12 @@ export default function OperatorControlPanel({
       source: 'manual',
       safety_status: 'CRITICAL',
     };
-    if (onSubmitAction) {
-      await onSubmitAction(selectedCrac, payload);
+    const res = onSubmitAction ? await onSubmitAction(selectedCrac, payload) : { status: 'ok' };
+    if (isOk(res)) {
+      showFeedback('EMERGENCY COOLING ACTIVATED (100% PUMP/FAN)', false, 6000);
+    } else {
+      showFeedback(errorText(res), true, 5000);
     }
-    setSubmittedFeedback('EMERGENCY COOLING ACTIVATED (100% PUMP/FAN)');
   };
 
   return (
@@ -225,8 +253,12 @@ export default function OperatorControlPanel({
 
       {/* Feedback Message */}
       {submittedFeedback && (
-        <div className="mt-3 p-2 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-1.5">
-          <Check className="w-3.5 h-3.5" />
+        <div className={`mt-3 p-2 rounded-xl text-xs flex items-center space-x-1.5 border ${
+          feedbackError
+            ? 'bg-red-500/15 border-red-500/30 text-red-300'
+            : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+        }`}>
+          {feedbackError ? <AlertOctagon className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
           <span>{submittedFeedback}</span>
         </div>
       )}

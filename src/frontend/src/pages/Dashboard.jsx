@@ -46,6 +46,18 @@ export default function Dashboard() {
     setControlMode,
   } = useTelemetryWebSocket(selectedFacility);
 
+  // The drawer shows the selected rack's LIVE values: selectedRack is only a
+  // snapshot taken at click time, so look the rack up in the current grid.
+  const liveRack = selectedRack
+    ? spatialGrid.find((n) => n.rack_id === selectedRack.rack_id) || selectedRack
+    : null;
+  // Rack air delta-T: use the facility's live outlet-inlet delta rather than a
+  // fixed 13.8 C.
+  const rackDeltaT =
+    telemetry.server_outlet_temp_c != null && telemetry.server_inlet_temp_c != null
+      ? telemetry.server_outlet_temp_c - telemetry.server_inlet_temp_c
+      : 0;
+
   const itPowerMw = (telemetry.it_power_kw / 1000.0).toFixed(2);
   const coolingPowerMw = (telemetry.cooling_power_kw / 1000.0).toFixed(2);
   const totalPowerMw = ((telemetry.it_power_kw + telemetry.cooling_power_kw) / 1000.0).toFixed(2);
@@ -81,7 +93,10 @@ export default function Dashboard() {
             <Building2 className="w-3.5 h-3.5 text-cyan-400" />
             <select
               value={selectedFacility}
-              onChange={(e) => setSelectedFacility(e.target.value)}
+              onChange={(e) => {
+                setSelectedFacility(e.target.value);
+                setSelectedRack(null); // a rack from the previous facility must not stay selected
+              }}
               className="bg-transparent text-slate-200 font-mono outline-none cursor-pointer"
             >
               <option value="DC-EAST-01">DC-EAST-01 (US-East / Chilled Water + Free-Air)</option>
@@ -223,19 +238,19 @@ export default function Dashboard() {
               <div className="flex justify-between">
                 <span className="text-slate-400">Inlet Temperature:</span>
                 <span className="font-mono font-bold text-emerald-400">
-                  {selectedRack.temp_c || 22.4}°C
+                  {liveRack.temp_c ?? 22.4}°C
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Outlet Temperature:</span>
                 <span className="font-mono text-slate-200">
-                  {((selectedRack.temp_c || 22.4) + 13.8).toFixed(1)}°C
+                  {((liveRack.temp_c ?? 22.4) + rackDeltaT).toFixed(1)}°C
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Server IT Power:</span>
                 <span className="font-mono text-slate-200">
-                  {selectedRack.power_kw || '24.2'} kW
+                  {liveRack.power_kw ?? 24.2} kW
                 </span>
               </div>
               <div className="flex justify-between">
@@ -247,7 +262,7 @@ export default function Dashboard() {
               <div className="flex justify-between">
                 <span className="text-slate-400">ASHRAE TC 9.9 Status:</span>
                 <span className="font-mono text-emerald-400 font-bold">
-                  {selectedRack.ashrae_status || 'NORMAL'}
+                  {liveRack.ashrae_status || 'NORMAL'}
                 </span>
               </div>
             </div>
@@ -265,6 +280,7 @@ export default function Dashboard() {
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* PUE & WUE Dial */}
         <PUEGauge
+          valveSplitPct={telemetry.valve_split_pct}
           pue={telemetry.pue || 1.134}
           wue={telemetry.wue || 0.28}
           itPowerKw={telemetry.it_power_kw || 18450}

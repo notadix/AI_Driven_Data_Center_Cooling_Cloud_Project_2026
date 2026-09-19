@@ -1,7 +1,7 @@
 import React from 'react';
 import { Zap, Droplets, Target, TrendingDown, ArrowDownRight } from 'lucide-react';
 
-export default function PUEGauge({ pue = 1.134, wue = 0.28, itPowerKw = 18450, coolingPowerKw = 2480 }) {
+export default function PUEGauge({ pue = 1.134, wue = 0.28, itPowerKw = 18450, coolingPowerKw = 2480, valveSplitPct }) {
   // PUE Gauge Angle Calculation (scale from 1.0 to 1.6)
   // 1.0 = 0%, 1.6 = 100%
   const pueMin = 1.0;
@@ -109,7 +109,7 @@ export default function PUEGauge({ pue = 1.134, wue = 0.28, itPowerKw = 18450, c
             </div>
           </div>
           <span className="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded">
-            94% Free
+            {valveSplitPct != null ? `Valve ${Number(valveSplitPct).toFixed(0)}%` : 'Valve --'}
           </span>
         </div>
 
