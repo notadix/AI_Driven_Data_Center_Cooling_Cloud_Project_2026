@@ -19,15 +19,15 @@ All results are empirically measured from trained model checkpoints and recorded
 
 | System Component | Evaluated Metric | Baseline / Target | Safe-PPO / FNO Measured | Improvement |
 |---|---|:---:|:---:|:---:|
-| **Thermal Physics Surrogate** | $R^2$ Accuracy (2D grid) | $\ge 0.9500$ | **0.9997** | **+0.0497** |
-| | Mean Absolute Error (MAE) | $\le 0.4000^\circ\text{C}$ | **0.0605 °C** | **6.6× error reduction** |
-| | Inference Latency (CPU) | $\le 100.0\text{ ms}$ | **6.26 ms (P95: 9.07 ms)** | **11× latency margin** |
-| **Closed-Loop RL Controller** | Mean Facility PUE | 1.1225 (ASHRAE Rule) | **1.0471** | **-6.71% PUE overhead** |
-| | Thermal SLA Breach Rate | 21.2% (ASHRAE Rule) | **0.0%** | **100% SLA compliance** |
+| **Thermal Physics Surrogate** | $R^2$ Accuracy (2D grid) | $\ge 0.9500$ | **0.9997** | Target met |
+| | Mean Absolute Error (MAE) | $\le 0.4000^\circ\text{C}$ | **0.0605 °C** | Target met |
+| | Inference Latency (CPU) | $< 100\text{ ms}$ | **6.26 ms (P95: 9.07 ms)** | Target met |
+| **Closed-Loop RL Controller** | Mean Facility PUE | 1.1225 (ASHRAE Rule) | **1.0471** | PUE 6.7% lower |
+| | Steps violating ASHRAE inlet envelope | 14.7% (ASHRAE Rule) | **0.0%** | 0 violating steps in 5 episodes |
 | | Cumulative Reward | -439.40 (ASHRAE Rule) | **-37.54** | **+401.86 reward gain** |
-| | Lagrangian Safety Cost | $\le 0.0500$ Limit | **0.0000** | **Strict safety adherence** |
+| | Lagrangian Safety Cost | $\le 0.0500$ Limit | **0.0000** | Within limit |
 
-Detailed empirical breakdown and engineering caveat disclosures: 📄 **[`docs/RESULTS.md`](docs/RESULTS.md)**  
+RL numbers come from one training run, evaluated for 5 episodes in the Gymnasium environment; the "ASHRAE rule" baseline is a constant setpoint, not a full Guideline 36 sequence. Live LocalStack/AWS runs are not yet done. Detailed breakdown and caveats: 📄 **[`docs/RESULTS.md`](docs/RESULTS.md)**  
 Publication-ready visual figures: 📊 **[`presentation/`](presentation/)**
 
 ---

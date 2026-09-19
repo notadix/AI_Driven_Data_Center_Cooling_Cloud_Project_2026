@@ -19,9 +19,9 @@ python -m pytest testing/ -v
 ### Results by Test Module:
 | Test Module | Scope / Coverage | Test Count | Status |
 |---|---|:---:|:---:|
-| `testing/test_ai_models.py` | 2D FNO surrogate, Safe-PPO CMDP Lagrangian formulation, SageMaker MLOps handler | 42 passed | **PASS** |
-| `testing/test_digital_twin_env.py` | Gymnasium sandbox physics, ASHRAE thermal SLA bounds, reward functions | 14 passed | **PASS** |
-| `testing/test_backend_iot.py` | FastAPI REST endpoints, WebSockets, multi-facility control isolation, Prometheus `/metrics` | 110 passed, 8 skipped | **PASS** |
+| `testing/test_ai_models.py` | 2D FNO surrogate, Safe-PPO CMDP Lagrangian formulation, SageMaker MLOps handler | 26 passed | **PASS** |
+| `testing/test_digital_twin_env.py` | Gymnasium sandbox physics, ASHRAE thermal SLA bounds, reward functions | 16 passed | **PASS** |
+| `testing/test_backend_iot.py` | FastAPI REST endpoints, WebSockets, multi-facility control isolation, Prometheus `/metrics` | 124 passed, 8 skipped | **PASS** |
 | `testing/test_explainability_api.py` | Live SHAP / saliency feature attributions, 10D observation normalization, 404 handling | 5 passed | **PASS** |
 | `testing/test_e2e_system.py` | End-to-end closed loop, 3D scene schemas, CloudWatch alarms, carbon/weather lambdas | 13 passed | **PASS** |
 | **TOTAL** | **Full System Coverage** | **184 passed, 8 skipped** | **100% PASS** |
@@ -34,7 +34,7 @@ python -m pytest testing/ -v
 
 | Endpoint | Method | Facility / Target | Expected Behavior | Observed Result | Status |
 |---|:---:|---|---|---|:---:|
-| `/metrics` | `GET` | All facilities | Scrape-time Prometheus metrics exposition | `200 OK`, `crac_supply_temperature_celsius`, `facility_pue_ratio` exported | **PASS** |
+| `/metrics` | `GET` | All facilities | Scrape-time Prometheus metrics exposition | `200 OK`, `cooling_crac_supply_temp_c`, `cooling_facility_pue` exported | **PASS** |
 | `/api/v1/control/explain/DC-EAST-01/CRAC-01` | `GET` | DC-EAST-01 / CRAC-01 | 10D Safe-PPO feature attributions | `200 OK`, 10 keys, top positive `flow_lpm` (+0.495), top negative `grid_carbon_gco2` (-0.380) | **PASS** |
 | `/api/v1/control/explain/DC-WEST-02/CRAC-01` | `GET` | DC-WEST-02 / CRAC-01 | Isolated facility attributions | `200 OK`, valid bounded attributions | **PASS** |
 | `/api/v1/control/explain/DC-EU-01/CRAC-01` | `GET` | DC-EU-01 / CRAC-01 | Cold-climate free-air attributions | `200 OK`, valid bounded attributions | **PASS** |
