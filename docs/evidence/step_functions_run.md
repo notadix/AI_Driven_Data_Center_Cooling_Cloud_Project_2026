@@ -1,4 +1,4 @@
-﻿# Step Functions LocalStack Evidence
+# Step Functions LocalStack Evidence
 
 **Date**: 2026-09-19  
 **Branch**: `feature/SnigdaChandanala`  

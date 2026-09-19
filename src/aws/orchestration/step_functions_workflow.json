@@ -334,7 +334,7 @@
       "Parameters": {
         "TopicArn": "${AlertTopicArn}",
         "Message.$": "States.Format('SUCCESS: New cooling twin model deployed for facility {}. Validation passed.', $.facility_id)",
-        "Subject": "Cooling Digital Twin — Model Retraining Complete"
+        "Subject": "Cooling Digital Twin - Model Retraining Complete"
       },
       "End": true
     },
@@ -345,7 +345,7 @@
       "Parameters": {
         "TopicArn": "${AlertTopicArn}",
         "Message.$": "States.Format('REJECTED: Retrained model for facility {} failed validation gates. Keeping existing model.', $.facility_id)",
-        "Subject": "Cooling Digital Twin — Model Validation FAILED"
+        "Subject": "Cooling Digital Twin - Model Validation FAILED"
       },
       "Next": "MarkValidationFailure"
     },
@@ -365,7 +365,7 @@
       "Parameters": {
         "TopicArn": "${AlertTopicArn}",
         "Message.$": "States.Format('ERROR: Drift detection Lambda failed for facility {}. Manual inspection required.', $.facility_id)",
-        "Subject": "Cooling Digital Twin — Drift Detection Error"
+        "Subject": "Cooling Digital Twin - Drift Detection Error"
       },
       "Next": "DriftDetectionError"
     },

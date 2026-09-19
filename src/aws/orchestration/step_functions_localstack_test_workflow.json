@@ -1,4 +1,4 @@
-﻿{
+{
   "Comment": "Pass-only test workflow for LocalStack Community validation. Each state uses the Pass type so no Lambda, SageMaker, or other integration ARNs are required. This lets us verify that Step Functions itself is wired correctly on LocalStack without Pro-only services. The production workflow is in step_functions_workflow.json.",
   "StartAt": "DetectModelDrift",
   "States": {

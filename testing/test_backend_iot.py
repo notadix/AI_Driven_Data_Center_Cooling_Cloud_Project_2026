@@ -788,30 +788,28 @@ class TestWebSocketStream:
         with TestClient(app) as client:
             time.sleep(0.15)
             with client.websocket_connect("/ws/stream") as ws:
-                try:
-                    msg = ws.receive_text(timeout=3)
-                    parsed = json.loads(msg)
-                    assert parsed["type"] in ("heartbeat", "telemetry")
-                except Exception as e:
-                    pytest.skip(f"WebSocket receive timed out (acceptable in CI): {e}")
+                # The stream sends telemetry every simulator tick and a heartbeat after 1 s of silence,
+                # so a message always arrives within about a second. (The old version passed an
+                # unsupported `timeout=` kwarg, raised TypeError and skipped itself every time.)
+                parsed = json.loads(ws.receive_text())
+                assert parsed["type"] in ("heartbeat", "telemetry")
 
     def test_websocket_telemetry_type_annotation(self):
         """Telemetry messages must carry ashrae_status field."""
         from fastapi.testclient import TestClient
         from src.backend.main import app
         with TestClient(app) as client:
-            time.sleep(0.2)  # let simulator publish a few messages
+            time.sleep(0.2)
             with client.websocket_connect("/ws/stream") as ws:
-                received = []
-                try:
-                    for _ in range(5):
-                        raw = ws.receive_text(timeout=2)
-                        msg = json.loads(raw)
-                        received.append(msg)
-                except Exception:
-                    pass
-                telem_msgs = [m for m in received if m.get("type") == "telemetry"]
-                for tm in telem_msgs:
+                telem = []
+                for _ in range(30):                       # bounded: never hangs
+                    msg = json.loads(ws.receive_text())
+                    if msg.get("type") == "telemetry":
+                        telem.append(msg)
+                    if len(telem) >= 3:
+                        break
+                assert telem, "no telemetry message arrived on the stream"   # the old test could pass with none
+                for tm in telem:
                     assert "ashrae_status" in tm["payload"]
                     assert tm["payload"]["ashrae_status"] in ("NORMAL", "SLA_BREACH", "CRITICAL")
 

@@ -164,7 +164,7 @@ def _build_production_definition(sns_arn: str) -> str:
         "${SageMakerEndpointName}":      "cooling-twin-endpoint",
         "${AlertTopicArn}":              sns_arn,
     }
-    with open(PRODUCTION_WORKFLOW) as f:
+    with open(PRODUCTION_WORKFLOW, encoding="utf-8") as f:
         definition = f.read()
     for token, value in replacements.items():
         definition = definition.replace(token, value)
@@ -189,7 +189,7 @@ def provision_state_machines(endpoint: str, sns_arn: str) -> dict:
     definitions_to_create = [(STATE_MACHINE_NAME, _build_production_definition(sns_arn))]
 
     if TEST_WORKFLOW.exists():
-        definitions_to_create.append((TEST_STATE_MACHINE_NAME, TEST_WORKFLOW.read_text()))
+        definitions_to_create.append((TEST_STATE_MACHINE_NAME, TEST_WORKFLOW.read_text(encoding="utf-8-sig")))
     else:
         logger.info(
             "[StepFunctions] Test workflow not found at %s — "

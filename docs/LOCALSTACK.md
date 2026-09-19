@@ -1,4 +1,4 @@
-﻿# LocalStack Development Guide
+# LocalStack Development Guide
 
 **AI-Driven Cooling Digital Twin — Local AWS Emulation**
 
