@@ -1012,12 +1012,12 @@ class TestMultiFacilityTopology:
         from src.aws.iot.iot_publisher import IoTSimulator
         sim = IoTSimulator()
         facility_ids = {t["facility_id"] for t in sim.topology}
-        assert facility_ids == {"DC-EAST-01", "DC-WEST-01", "DC-EU-01"}
+        assert facility_ids == {"DC-EAST-01", "DC-WEST-02", "DC-EU-01"}
 
     def test_default_topology_has_four_cracs_per_facility(self):
         from src.aws.iot.iot_publisher import IoTSimulator
         sim = IoTSimulator()
-        for fid in ("DC-EAST-01", "DC-WEST-01", "DC-EU-01"):
+        for fid in ("DC-EAST-01", "DC-WEST-02", "DC-EU-01"):
             cracs = [t for t in sim.topology if t["facility_id"] == fid]
             assert len(cracs) == 4, f"Expected 4 CRACs for {fid}, got {len(cracs)}"
 
@@ -1025,34 +1025,50 @@ class TestMultiFacilityTopology:
         from src.aws.iot.iot_publisher import IoTSimulator
         sim = IoTSimulator()
         assert "DC-EAST-01:CRAC-01" in sim._simulators
-        assert "DC-WEST-01:CRAC-01" in sim._simulators
+        assert "DC-WEST-02:CRAC-01" in sim._simulators
         assert "DC-EU-01:CRAC-01" in sim._simulators
 
     def test_regional_ambient_temperatures_differ(self):
-        from src.aws.iot.iot_publisher import IoTSimulator
+        from src.aws.iot.iot_publisher import IoTSimulator, REGIONAL_CLIMATE_BASE, FACILITY_GRID_CARBON_GCOEKWH
         sim = IoTSimulator()
         east_ambient = sim._simulators["DC-EAST-01:CRAC-01"].ambient_c
-        west_ambient = sim._simulators["DC-WEST-01:CRAC-01"].ambient_c
+        west_ambient = sim._simulators["DC-WEST-02:CRAC-01"].ambient_c
         eu_ambient   = sim._simulators["DC-EU-01:CRAC-01"].ambient_c
-        assert east_ambient > eu_ambient, "East should be warmer than EU"
-        assert west_ambient > eu_ambient, "West should be warmer than EU"
-        assert east_ambient != west_ambient, "East and West should differ"
+        # Values must match REGIONAL_CLIMATE_BASE (single source of truth)
+        assert east_ambient == REGIONAL_CLIMATE_BASE["DC-EAST-01"]["base_dry_bulb"]  # 22.0
+        assert west_ambient == REGIONAL_CLIMATE_BASE["DC-WEST-02"]["base_dry_bulb"]  # 18.0
+        assert eu_ambient   == REGIONAL_CLIMATE_BASE["DC-EU-01"]["base_dry_bulb"]    # 15.0
+        assert east_ambient > west_ambient > eu_ambient, (
+            f"Expected East > West > EU but got {east_ambient} / {west_ambient} / {eu_ambient}"
+        )
+
+    def test_per_facility_grid_carbon_initialised_correctly(self):
+        from src.aws.iot.iot_publisher import IoTSimulator, FACILITY_GRID_CARBON_GCOEKWH
+        sim = IoTSimulator()
+        # Each facility's CRAC-01 simulator must start at the planned grid carbon value
+        assert sim._simulators["DC-EAST-01:CRAC-01"].carbon_gco2_kwh == FACILITY_GRID_CARBON_GCOEKWH["DC-EAST-01"]  # 320
+        assert sim._simulators["DC-WEST-02:CRAC-01"].carbon_gco2_kwh == FACILITY_GRID_CARBON_GCOEKWH["DC-WEST-02"]  # 180
+        assert sim._simulators["DC-EU-01:CRAC-01"].carbon_gco2_kwh   == FACILITY_GRID_CARBON_GCOEKWH["DC-EU-01"]    # 210
+        # West coast (high renewables) must be cleanest of the three
+        assert (sim._simulators["DC-WEST-02:CRAC-01"].carbon_gco2_kwh
+                < sim._simulators["DC-EU-01:CRAC-01"].carbon_gco2_kwh
+                < sim._simulators["DC-EAST-01:CRAC-01"].carbon_gco2_kwh)
 
     def test_telemetry_payload_carries_facility_id(self):
         from src.aws.iot.iot_publisher import IoTSimulator
         sim = IoTSimulator()
-        payload = sim._simulators["DC-WEST-01:CRAC-02"].step()
-        assert payload.facility_id == "DC-WEST-01"
+        payload = sim._simulators["DC-WEST-02:CRAC-02"].step()
+        assert payload.facility_id == "DC-WEST-02"
         assert payload.crac_id == "CRAC-02"
 
     def test_apply_control_action_targets_correct_facility(self):
         from src.aws.iot.iot_publisher import IoTSimulator
         sim = IoTSimulator()
         original_east = sim._simulators["DC-EAST-01:CRAC-01"].supply_c
-        original_west = sim._simulators["DC-WEST-01:CRAC-01"].supply_c
-        # Apply -1.0 delta only to DC-WEST-01 CRAC-01
-        sim.apply_control_action("CRAC-01", {"delta_supply_c": -1.0}, facility_id="DC-WEST-01")
-        sim._simulators["DC-WEST-01:CRAC-01"].step()  # apply the pending control
+        original_west = sim._simulators["DC-WEST-02:CRAC-01"].supply_c
+        # Apply -1.0 delta only to DC-WEST-02 CRAC-01
+        sim.apply_control_action("CRAC-01", {"delta_supply_c": -1.0}, facility_id="DC-WEST-02")
+        sim._simulators["DC-WEST-02:CRAC-01"].step()  # apply the pending control
         # East-01 CRAC-01 must be unchanged
         assert sim._simulators["DC-EAST-01:CRAC-01"].supply_c == original_east
 
@@ -1072,23 +1088,23 @@ class TestControlIsolationByFacility:
     def test_get_crac_mode_defaults_to_auto(self, reset_control_state):
         from src.backend.api.v1.control import get_crac_mode
         assert get_crac_mode("CRAC-01", facility_id="DC-EAST-01") == "auto"
-        assert get_crac_mode("CRAC-01", facility_id="DC-WEST-01") == "auto"
+        assert get_crac_mode("CRAC-01", facility_id="DC-WEST-02") == "auto"
 
     def test_mode_isolation_between_facilities(self, reset_control_state):
-        """Setting mode for CRAC-01 in DC-EAST-01 must not affect DC-WEST-01."""
+        """Setting mode for CRAC-01 in DC-EAST-01 must not affect DC-WEST-02."""
         import src.backend.api.v1.control as ctrl
         from src.backend.api.v1.control import get_crac_mode
         ctrl._crac_modes[("DC-EAST-01", "CRAC-01")] = "manual"
         assert get_crac_mode("CRAC-01", facility_id="DC-EAST-01") == "manual"
-        assert get_crac_mode("CRAC-01", facility_id="DC-WEST-01") == "auto"
+        assert get_crac_mode("CRAC-01", facility_id="DC-WEST-02") == "auto"
 
     def test_record_action_isolation_between_facilities(self, reset_control_state):
-        """Actions recorded for DC-EAST-01 must not appear in DC-WEST-01 status."""
+        """Actions recorded for DC-EAST-01 must not appear in DC-WEST-02 status."""
         import src.backend.api.v1.control as ctrl
         from src.backend.api.v1.control import record_action
         record_action("CRAC-02", {"delta_supply_c": 0.5}, "manual", facility_id="DC-EAST-01")
         assert ("DC-EAST-01", "CRAC-02") in ctrl._last_actions
-        assert ("DC-WEST-01", "CRAC-02") not in ctrl._last_actions
+        assert ("DC-WEST-02", "CRAC-02") not in ctrl._last_actions
 
     def test_backward_compat_get_crac_mode_no_facility_arg(self, reset_control_state):
         """get_crac_mode(crac_id) with no facility_id arg must default to DC-EAST-01."""
@@ -1164,17 +1180,17 @@ class TestControlAPIMultiFacility:
         assert resp.json()["data"]["facility_id"] == "DC-EAST-01"
 
     def test_action_isolation_different_facilities_same_crac_id(self):
-        """CRAC-01 in DC-EAST-01 and DC-WEST-01 must be controlled independently."""
+        """CRAC-01 in DC-EAST-01 and DC-WEST-02 must be controlled independently."""
         client = self._get_client()
         import src.backend.api.v1.control as ctrl
         # Put DC-EAST-01 CRAC-01 in manual mode
         ctrl._crac_modes[("DC-EAST-01", "CRAC-01")] = "manual"
-        # DC-WEST-01 CRAC-01 should still be in auto — RL action must not be blocked there
+        # DC-WEST-02 CRAC-01 should still be in auto — RL action must not be blocked there
         resp = client.post(
-            "/api/v1/control/action/DC-WEST-01/CRAC-01",
+            "/api/v1/control/action/DC-WEST-02/CRAC-01",
             json={"delta_supply_c": -0.3, "source": "rl_agent"},
         )
-        # DC-WEST-01 CRAC-01 is in auto => RL action should succeed (200)
+        # DC-WEST-02 CRAC-01 is in auto => RL action should succeed (200)
         assert resp.status_code == 200
 
     def test_mode_switch_isolated_per_facility(self):
@@ -1202,7 +1218,9 @@ class TestControlAPIMultiFacility:
     def test_schema_seed_has_three_facilities(self):
         """Verify all 3 facility IDs are seeded in postgres_schema.sql."""
         schema = open("database/postgres_schema.sql").read()
-        for fid in ("DC-EAST-01", "DC-WEST-01", "DC-EU-01"):
+        for fid in ("DC-EAST-01", "DC-WEST-02", "DC-EU-01"):
             assert fid in schema, f"Facility '{fid}' missing from seed data"
+        # Old ID must be gone
+        assert "DC-WEST-01" not in schema, "Stale DC-WEST-01 found in postgres_schema.sql"
 
 

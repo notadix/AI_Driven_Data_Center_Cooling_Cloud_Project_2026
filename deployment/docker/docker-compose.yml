@@ -41,22 +41,23 @@ services:
 
       # IoT Simulator
       IOT_PUBLISH_INTERVAL_S: "1.0"
-      # 12 CRACs across 3 facilities matching postgres_schema.sql seed data
-      # and the IoTSimulator default topology (3 × 4 CRACs with regional ambient).
+      # 12 CRACs across 3 facilities.  Values match REGIONAL_CLIMATE_BASE and
+      # FACILITY_GRID_CARBON_GCOEKWH in src/aws/iot/iot_publisher.py and the
+      # frontend facility dropdown (DC-EAST-01 / DC-WEST-02 / DC-EU-01).
       IOT_TOPOLOGY: >
         [
-          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 22.0},
-          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 22.0},
-          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 22.0},
-          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 22.0},
-          {"facility_id": "DC-WEST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 20.0},
-          {"facility_id": "DC-WEST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 20.0},
-          {"facility_id": "DC-WEST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 20.0},
-          {"facility_id": "DC-WEST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 20.0},
-          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 18.0},
-          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 18.0},
-          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 18.0},
-          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 18.0}
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 22.0, "grid_carbon_gco2_kwh": 320.0},
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 22.0, "grid_carbon_gco2_kwh": 320.0},
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 22.0, "grid_carbon_gco2_kwh": 320.0},
+          {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 22.0, "grid_carbon_gco2_kwh": 320.0},
+          {"facility_id": "DC-WEST-02", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 18.0, "grid_carbon_gco2_kwh": 180.0},
+          {"facility_id": "DC-WEST-02", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 18.0, "grid_carbon_gco2_kwh": 180.0},
+          {"facility_id": "DC-WEST-02", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 18.0, "grid_carbon_gco2_kwh": 180.0},
+          {"facility_id": "DC-WEST-02", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 18.0, "grid_carbon_gco2_kwh": 180.0},
+          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 15.0, "grid_carbon_gco2_kwh": 210.0},
+          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 15.0, "grid_carbon_gco2_kwh": 210.0},
+          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 15.0, "grid_carbon_gco2_kwh": 210.0},
+          {"facility_id": "DC-EU-01",   "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 15.0, "grid_carbon_gco2_kwh": 210.0}
         ]
 
       # LocalStack endpoints (used when LOCAL_MODE=false in dev)

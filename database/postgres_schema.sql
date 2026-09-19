@@ -253,12 +253,12 @@ CREATE TRIGGER crac_units_updated_at
 -- =============================================================================
 -- Seed data: 3 facilities × 4 CRACs × representative racks
 -- Composite PKs mean the same crac_id value ('CRAC-01' etc.) is valid for
--- every facility — no collisions across DC-EAST-01, DC-WEST-01, DC-EU-01.
+-- every facility — no collisions across DC-EAST-01, DC-WEST-02, DC-EU-01.
 -- =============================================================================
 INSERT INTO facilities (facility_id, facility_name, aws_region, nominal_capacity_mw, target_pue)
 VALUES
-    ('DC-EAST-01', 'East Coast Primary Data Center',  'us-east-1', 5.0, 1.15),
-    ('DC-WEST-01', 'West Coast Secondary Data Center', 'us-west-2', 4.0, 1.18),
+    ('DC-EAST-01', 'East Coast Primary Data Center',  'us-east-1',   5.0, 1.15),
+    ('DC-WEST-02', 'West Coast Secondary Data Center', 'us-west-2',   4.0, 1.18),
     ('DC-EU-01',   'EU Frankfurt Data Center',         'eu-central-1', 3.0, 1.20)
 ON CONFLICT (facility_id) DO NOTHING;
 
@@ -272,11 +272,11 @@ VALUES
     ('DC-EAST-01', 'CRAC-02', 'south', 120.0, 7500.0),
     ('DC-EAST-01', 'CRAC-03', 'east',  100.0, 6500.0),
     ('DC-EAST-01', 'CRAC-04', 'west',  100.0, 6500.0),
-    -- DC-WEST-01
-    ('DC-WEST-01', 'CRAC-01', 'north', 110.0, 7000.0),
-    ('DC-WEST-01', 'CRAC-02', 'south', 110.0, 7000.0),
-    ('DC-WEST-01', 'CRAC-03', 'east',   90.0, 6000.0),
-    ('DC-WEST-01', 'CRAC-04', 'west',   90.0, 6000.0),
+    -- DC-WEST-02
+    ('DC-WEST-02', 'CRAC-01', 'north', 110.0, 7000.0),
+    ('DC-WEST-02', 'CRAC-02', 'south', 110.0, 7000.0),
+    ('DC-WEST-02', 'CRAC-03', 'east',   90.0, 6000.0),
+    ('DC-WEST-02', 'CRAC-04', 'west',   90.0, 6000.0),
     -- DC-EU-01
     ('DC-EU-01', 'CRAC-01', 'north',  95.0, 6200.0),
     ('DC-EU-01', 'CRAC-02', 'south',  95.0, 6200.0),
@@ -298,13 +298,13 @@ VALUES
     ('DC-EAST-01', 'RACK-A05', 'CRAC-03', 0, 4, 20.0),
     ('DC-EAST-01', 'RACK-A06', 'CRAC-03', 0, 5, 20.0),
     ('DC-EAST-01', 'RACK-E05', 'CRAC-04', 4, 4, 20.0),
-    -- DC-WEST-01
-    ('DC-WEST-01', 'RACK-A01', 'CRAC-01', 0, 0, 18.0),
-    ('DC-WEST-01', 'RACK-A02', 'CRAC-01', 0, 1, 18.0),
-    ('DC-WEST-01', 'RACK-E01', 'CRAC-02', 4, 0, 18.0),
-    ('DC-WEST-01', 'RACK-E02', 'CRAC-02', 4, 1, 18.0),
-    ('DC-WEST-01', 'RACK-A05', 'CRAC-03', 0, 4, 18.0),
-    ('DC-WEST-01', 'RACK-E05', 'CRAC-04', 4, 4, 18.0),
+    -- DC-WEST-02
+    ('DC-WEST-02', 'RACK-A01', 'CRAC-01', 0, 0, 18.0),
+    ('DC-WEST-02', 'RACK-A02', 'CRAC-01', 0, 1, 18.0),
+    ('DC-WEST-02', 'RACK-E01', 'CRAC-02', 4, 0, 18.0),
+    ('DC-WEST-02', 'RACK-E02', 'CRAC-02', 4, 1, 18.0),
+    ('DC-WEST-02', 'RACK-A05', 'CRAC-03', 0, 4, 18.0),
+    ('DC-WEST-02', 'RACK-E05', 'CRAC-04', 4, 4, 18.0),
     -- DC-EU-01
     ('DC-EU-01', 'RACK-A01', 'CRAC-01', 0, 0, 15.0),
     ('DC-EU-01', 'RACK-A02', 'CRAC-01', 0, 1, 15.0),

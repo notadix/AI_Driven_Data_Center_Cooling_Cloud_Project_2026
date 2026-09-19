@@ -9,7 +9,7 @@ Endpoints:
 
 State isolation:
   All per-CRAC state (_crac_modes, _last_actions) is keyed by the tuple
-  (facility_id, crac_id) so that CRAC-01 in DC-EAST-01 and CRAC-01 in DC-WEST-01
+  (facility_id, crac_id) so that CRAC-01 in DC-EAST-01 and CRAC-01 in DC-WEST-02
   are completely independent, matching the composite primary keys in postgres_schema.sql.
 
 Backward compatibility:

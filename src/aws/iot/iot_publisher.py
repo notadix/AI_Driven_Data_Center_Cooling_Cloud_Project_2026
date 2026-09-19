@@ -33,6 +33,29 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Regional climate constants — single source of truth, mirroring
+# src/aws/serverless/lambda_weather_fetcher.py::REGIONAL_CLIMATE_BASE
+# ---------------------------------------------------------------------------
+
+# Ambient baseline temperatures (°C dry-bulb) per facility.
+# These values are used by PhysicsSimulator to initialise ambient_c so that
+# different facilities produce measurably different thermal behaviour in the UI.
+REGIONAL_CLIMATE_BASE = {
+    "DC-EAST-01": {"base_dry_bulb": 22.0, "rh_base": 60.0, "diurnal_range": 8.0},
+    "DC-WEST-02": {"base_dry_bulb": 18.0, "rh_base": 50.0, "diurnal_range": 9.0},
+    "DC-EU-01":   {"base_dry_bulb": 15.0, "rh_base": 75.0, "diurnal_range": 6.0},
+}
+
+# Grid carbon intensity (gCO₂/kWh) per facility — used as the starting value
+# for the PhysicsSimulator's carbon_gco2_kwh random walk.
+FACILITY_GRID_CARBON_GCOEKWH: Dict[str, float] = {
+    "DC-EAST-01": 320.0,   # US East (mid-Atlantic, heavier coal/gas mix)
+    "DC-WEST-02": 180.0,   # US West (high renewables — Pacific Northwest hydro)
+    "DC-EU-01":   210.0,   # EU Frankfurt (wind + nuclear)
+}
+
+
+# ---------------------------------------------------------------------------
 # Telemetry & Control Data Contracts
 # ---------------------------------------------------------------------------
 
@@ -94,6 +117,7 @@ class PhysicsSimulator:
         crac_id: str,
         rack_id: str,
         ambient_c: float = 22.0,
+        grid_carbon_gco2_kwh: float = 320.0,
         it_power_kw: float = 18.0,
     ):
         self.facility_id = facility_id
@@ -107,7 +131,10 @@ class PhysicsSimulator:
         self.pump_pct = 75.0
         self.fan_pct = 70.0
         self.valve_split_pct = 50.0
-        self.carbon_gco2_kwh = 320.0
+        # Initialise carbon at the per-facility grid intensity so that
+        # facilities with cleaner grids (e.g. DC-WEST-02 at 180 gCO₂/kWh)
+        # show lower values in the UI from the very first telemetry frame.
+        self.carbon_gco2_kwh = grid_carbon_gco2_kwh
         self._step = 0
 
         # Pending control action from control topic
@@ -358,34 +385,47 @@ class IoTSimulator:
         aws_region: str = "us-east-1",
     ):
         # Default topology: 3 facilities × 4 CRACs, matching postgres_schema.sql seed data.
-        # Each facility has a distinct ambient_c offset to simulate regional climate:
-        #   DC-EAST-01 (US East / mid-Atlantic)  — 22 °C baseline
-        #   DC-WEST-01 (US West / California)    — 20 °C baseline (cooler coastal air)
-        #   DC-EU-01   (EU Frankfurt)             — 18 °C baseline (continental, cooler)
-        # Rack names match the seed racks in postgres_schema.sql.
+        # ambient_c and grid_carbon_gco2_kwh are derived from REGIONAL_CLIMATE_BASE and
+        # FACILITY_GRID_CARBON_GCOEKWH so there is a single source of truth for these values.
+        _rcb = REGIONAL_CLIMATE_BASE
+        _gcc = FACILITY_GRID_CARBON_GCOEKWH
         self.topology = topology or [
-            # DC-EAST-01
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 22.0},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 22.0},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 22.0},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 22.0},
-            # DC-WEST-01
-            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 20.0},
-            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 20.0},
-            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 20.0},
-            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 20.0},
-            # DC-EU-01
-            {"facility_id": "DC-EU-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 18.0},
-            {"facility_id": "DC-EU-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 18.0},
-            {"facility_id": "DC-EU-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 18.0},
-            {"facility_id": "DC-EU-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 18.0},
+            # DC-EAST-01 (US East, mid-Atlantic — warmest, highest grid carbon)
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01",
+             "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01",
+             "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05",
+             "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05",
+             "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
+            # DC-WEST-02 (US West, Pacific Northwest — coolest US site, high renewables)
+            {"facility_id": "DC-WEST-02", "crac_id": "CRAC-01", "rack_id": "RACK-A01",
+             "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
+            {"facility_id": "DC-WEST-02", "crac_id": "CRAC-02", "rack_id": "RACK-E01",
+             "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
+            {"facility_id": "DC-WEST-02", "crac_id": "CRAC-03", "rack_id": "RACK-A05",
+             "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
+            {"facility_id": "DC-WEST-02", "crac_id": "CRAC-04", "rack_id": "RACK-E05",
+             "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
+            # DC-EU-01 (EU Frankfurt — lowest ambient, mixed-clean grid)
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01",
+             "ambient_c": _rcb["DC-EU-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EU-01"]},
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01",
+             "ambient_c": _rcb["DC-EU-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EU-01"]},
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05",
+             "ambient_c": _rcb["DC-EU-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EU-01"]},
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05",
+             "ambient_c": _rcb["DC-EU-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EU-01"]},
         ]
         self.publish_interval_s = publish_interval_s
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
         # Initialise physics simulators; one per (facility_id, crac_id) pair.
-        # Regional ambient temperature from topology entry (or default 22 °C).
+        # Regional ambient_c and grid_carbon_gco2_kwh come from the topology entry
+        # (which is pre-populated from REGIONAL_CLIMATE_BASE / FACILITY_GRID_CARBON_GCOEKWH
+        # for the default topology, or from the caller-supplied topology dict).
         self._simulators: Dict[str, PhysicsSimulator] = {}
         for t in self.topology:
             key = f"{t['facility_id']}:{t['crac_id']}"
@@ -394,6 +434,10 @@ class IoTSimulator:
                 crac_id=t["crac_id"],
                 rack_id=t["rack_id"],
                 ambient_c=float(t.get("ambient_c", 22.0)),
+                grid_carbon_gco2_kwh=float(
+                    t.get("grid_carbon_gco2_kwh",
+                          FACILITY_GRID_CARBON_GCOEKWH.get(t["facility_id"], 320.0))
+                ),
             )
 
         # Publisher: AWS Cloud or Local
