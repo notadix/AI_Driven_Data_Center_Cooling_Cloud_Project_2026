@@ -141,6 +141,7 @@ class DataCenterCoolingEnv(gym.Env):
         info = {
             "pue": pue,
             "cooling_kw": cooling_kw,
+            "it_kw": float(self.it_kw),
             "inlet_c": inlet_c,
             "violated": violated,
             "safety_cost": float(safety_cost),

@@ -208,3 +208,41 @@ class TestDatasetPipeline:
         assert tensors.shape == (50, 4, 8, 8)
         assert tensors.dtype == np.float32
         assert np.isfinite(tensors).all()
+
+
+class TestPhase2Additions:
+    def test_agent_obs_bounds_match_environment(self):
+        import numpy as np
+        from safe_ppo import DEFAULT_OBS_LOW, DEFAULT_OBS_HIGH
+        from src.digital_twin.cooling_sim_env import DataCenterCoolingEnv
+
+        assert np.allclose(DEFAULT_OBS_LOW, DataCenterCoolingEnv.OBS_LOW)
+        assert np.allclose(DEFAULT_OBS_HIGH, DataCenterCoolingEnv.OBS_HIGH)
+
+    def test_normalisation_is_inside_the_network(self):
+        import numpy as np
+        agent = SafePPOAgent(state_dim=10, action_dim=4, device="cpu")
+        raw = np.array([19000, 20, 300, 20, 32, 19000, 23, 34, 1000, 1.05], dtype=np.float32)
+        a, *_ = agent.select_action(raw, det=True)
+        assert np.all(np.isfinite(a)) and np.all(np.abs(a) <= 1.0)
+
+    def test_unconstrained_agent_ignores_lagrangian(self):
+        import torch
+        agent = SafePPOAgent(state_dim=10, action_dim=4, device="cpu", constrained=False)
+        lam0 = agent.lam
+        n = 64
+        states = torch.tensor(np.random.uniform(0, 1, (n, 10)) * [25000, 40, 600, 20, 60, 25000, 20, 50, 4000, 1] + [5000, 0, 50, 10, 15, 1000, 10, 20, 50, 1], dtype=torch.float32)
+        actions = torch.zeros(n, 4)
+        lps = torch.zeros(n, 1)
+        adv = torch.randn(n)
+        agent.update(states, actions, lps, adv, adv, adv, adv, epochs=1, bs=32)
+        assert agent.lam == lam0
+
+    def test_guideline36_behaviour(self):
+        import numpy as np
+        hot = np.array([20000, 30, 300, 20, 32, 19000, 23, 34, 1000, 1.05], dtype=np.float32)
+        cold = hot.copy(); cold[1] = 8.0
+        a_hot, a_cold = BaselineControllers.guideline36(hot), BaselineControllers.guideline36(cold)
+        assert np.all(np.abs(a_hot) <= 1.0) and np.all(np.abs(a_cold) <= 1.0)
+        assert a_cold[0] > a_hot[0]     # warmer supply when it is cool outside
+        assert a_cold[3] > a_hot[3]     # economizer only when outdoor air is cool

@@ -42,6 +42,37 @@ class BaselineControllers:
         return np.array([0.0, 0.54, 0.28, -0.25], dtype=np.float32)
 
     @staticmethod
+    def guideline36(obs: np.ndarray) -> np.ndarray:
+        """ASHRAE Guideline 36-style rule-based sequence (a reset-schedule
+        controller, not a certified implementation of the standard):
+
+          * supply-temperature reset by outdoor temperature, as in GL36's
+            supply-air-temperature reset -- WARMER supply when it is cool
+            outside, colder when hot (22 C at <=16 C outdoor down to 18 C at
+            >=28 C), trimmed by rack-inlet feedback around the 24 C target
+          * pump and fan speed staged with IT load (flow follows load)
+          * economizer (free-air valve) enabled when outdoor air is at least
+            3 C below the supply setpoint
+        """
+        it_kw, ambient, supply, inlet = float(obs[0]), float(obs[1]), float(obs[3]), float(obs[6])
+
+        frac = np.clip((ambient - 16.0) / (28.0 - 16.0), 0.0, 1.0)
+        supply_target = 22.0 - 4.0 * frac
+        supply_target -= float(np.clip((inlet - 24.0) * 0.5, -1.0, 2.0))   # trim & respond
+        supply_target = float(np.clip(supply_target, 14.0, 24.0))
+        a0 = np.clip((supply_target - supply) / 1.5, -1.0, 1.0)
+
+        load = float(np.clip(it_kw / 24000.0, 0.0, 1.0))
+        pump_pct = 50.0 + 40.0 * load
+        fan_pct = 40.0 + 45.0 * load
+        a1 = (pump_pct - 35.0) / 65.0 * 2.0 - 1.0
+        a2 = (fan_pct - 30.0) / 70.0 * 2.0 - 1.0
+
+        valve_pct = 40.0 if ambient < supply_target - 3.0 else 0.0
+        a3 = valve_pct / 40.0 * 2.0 - 1.0
+        return np.array([a0, a1, a2, a3], dtype=np.float32)
+
+    @staticmethod
     def pid(obs: np.ndarray, target_c: float = 23.0) -> np.ndarray:
         err = obs[6] - target_c
         return np.clip(

@@ -6,9 +6,27 @@ from typing import Tuple, Dict, List
 import numpy as np
 
 
+# Observation bounds of DataCenterCoolingEnv (kept in sync by a unit test).
+# The policy normalises raw observations to [-1, 1] with these fixed bounds
+# internally: raw inputs span ~1e-2 (PUE offsets) to ~1e4 (IT kW, flow LPM), which
+# made the first layer's pre-activations dominated by whichever feature had the
+# biggest units. Doing it inside the network keeps every caller (live control,
+# SageMaker handler, explainability) passing raw observations unchanged.
+DEFAULT_OBS_LOW = [5000.0, -5.0, 50.0, 10.0, 15.0, 1000.0, 10.0, 20.0, 50.0, 1.0]
+DEFAULT_OBS_HIGH = [30000.0, 45.0, 700.0, 30.0, 80.0, 30000.0, 35.0, 75.0, 4500.0, 2.0]
+
+
 class ActorCritic(nn.Module):
     def __init__(self, state_dim: int = 10, action_dim: int = 4, hidden: int = 128):
         super().__init__()
+        if state_dim == len(DEFAULT_OBS_LOW):
+            low = torch.tensor(DEFAULT_OBS_LOW, dtype=torch.float32)
+            high = torch.tensor(DEFAULT_OBS_HIGH, dtype=torch.float32)
+        else:  # unknown observation layout: identity normalisation
+            low = torch.zeros(state_dim)
+            high = torch.full((state_dim,), 2.0)
+        self.register_buffer("obs_mid", (high + low) / 2.0)
+        self.register_buffer("obs_half", (high - low) / 2.0)
         self.shared = nn.Sequential(
             nn.Linear(state_dim, hidden), nn.LayerNorm(hidden), nn.Tanh(),
             nn.Linear(hidden, hidden), nn.LayerNorm(hidden), nn.Tanh(),
@@ -19,6 +37,7 @@ class ActorCritic(nn.Module):
         self.v_cost = nn.Sequential(nn.Linear(hidden, 64), nn.Tanh(), nn.Linear(64, 1))
 
     def forward(self, s: torch.Tensor):
+        s = (s - self.obs_mid) / self.obs_half
         h = self.shared(s)
         mean = torch.tanh(self.actor_mean(h))
         std = torch.exp(self.log_std).expand_as(mean)
@@ -51,7 +70,12 @@ class SafePPOAgent:
         clip: float = 0.2,
         cost_limit: float = 0.05,
         device: str = "cpu",
+        constrained: bool = True,
     ):
+        # constrained=False is the standard-PPO baseline: the Lagrangian cost
+        # advantage is ignored and safety is only a soft penalty already
+        # present in the environment reward.
+        self.constrained = constrained
         self.device = torch.device(device)
         self.gamma = gamma
         self.lam_gae = lam_gae
@@ -103,7 +127,7 @@ class SafePPOAgent:
     def update(self, states, actions, old_lps, adv_r, adv_c, ret_r, ret_c, epochs=5, bs=64) -> Dict:
         adv_r = (adv_r - adv_r.mean()) / (adv_r.std() + 1e-8)
         adv_c = (adv_c - adv_c.mean()) / (adv_c.std() + 1e-8)
-        composite = adv_r - self.lam * adv_c
+        composite = adv_r - self.lam * adv_c if self.constrained else adv_r
 
         N = states.size(0)
         p_losses, vr_losses, vc_losses = [], [], []
@@ -127,9 +151,10 @@ class SafePPOAgent:
                 vc_losses.append(F.mse_loss(vc.squeeze(-1), ret_c[b]).item())
 
         mean_cost = ret_c.mean().item()
-        self.opt_lam.zero_grad()
-        (-F.softplus(self.log_lam) * (mean_cost - self.cost_limit)).backward()
-        self.opt_lam.step()
+        if self.constrained:
+            self.opt_lam.zero_grad()
+            (-F.softplus(self.log_lam) * (mean_cost - self.cost_limit)).backward()
+            self.opt_lam.step()
 
         return {
             "loss_policy": float(np.mean(p_losses)),
