@@ -1,0 +1,23 @@
+{
+  "method": "600 steps x 4 CRACs per facility on the IoT PhysicsSimulator at default setpoints (no controller), seed=42",
+  "facilities": {
+    "DC-EAST-01": {
+      "samples": 2400,
+      "mean_pue": 1.8032,
+      "mean_wue_l_per_kwh": 0.3676,
+      "mean_ambient_c": 18.28
+    },
+    "DC-WEST-02": {
+      "samples": 2400,
+      "mean_pue": 1.7791,
+      "mean_wue_l_per_kwh": 0.3084,
+      "mean_ambient_c": 12.66
+    },
+    "DC-EU-01": {
+      "samples": 2400,
+      "mean_pue": 1.7806,
+      "mean_wue_l_per_kwh": 0.301,
+      "mean_ambient_c": 10.82
+    }
+  }
+}
