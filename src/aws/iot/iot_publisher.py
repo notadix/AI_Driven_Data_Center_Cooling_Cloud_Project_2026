@@ -22,6 +22,7 @@ import os
 import random
 import threading
 import time
+from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
@@ -29,7 +30,7 @@ from typing import Any, Callable, Dict, List, Optional
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
-from src.digital_twin.physics_dynamics import LiquidCoolingPhysics, ZONE_SCALE
+from src.digital_twin.physics_dynamics import LiquidCoolingPhysics, ZONE_SCALE, estimate_relative_humidity
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,9 @@ class PhysicsSimulator:
         # show lower values in the UI from the very first telemetry frame.
         self.carbon_gco2_kwh = grid_carbon_gco2_kwh
         self._physics = LiquidCoolingPhysics()
+        # One step = 10 simulated minutes (144 steps per day): the last 24 IT readings are the
+        # 4-hour history the load forecaster expects.
+        self.it_history: deque = deque(maxlen=24)
         self._step = 0
 
         # Pending control action from control topic
@@ -159,39 +163,13 @@ class PhysicsSimulator:
         return max(1.5, base_cop - 0.04 * max(0.0, ambient_c - 15.0))
 
     def _estimate_relative_humidity(self, ambient_c: float) -> float:
-        """Coarse RH estimate correlated with ambient temperature, matching
-        the same inverse diurnal relationship src/aws/serverless/
-        lambda_weather_fetcher.py's get_ambient_weather() already uses
-        (rh_base - diurnal_offset * 2.5), since this simulator doesn't
-        track humidity as its own state variable."""
-        baseline_c = 22.0
-        rh = 60.0 - (ambient_c - baseline_c) * 2.5
-        return max(20.0, min(95.0, rh))
+        return estimate_relative_humidity(ambient_c)
 
     def _compute_wue(self, chiller_kw: float, it_power_kw: float, ambient_c: float) -> float:
-        """Water Usage Effectiveness (L/kWh-IT): approximates evaporative
-        cooling-tower water consumption from the chiller's heat-rejection
-        load, using the wet-bulb temperature (reusing
-        lambda_weather_fetcher.compute_psychrometrics rather than a second,
-        inconsistent psychrometric formula) to capture that humid air
-        reduces evaporative efficiency, requiring more water per unit of
-        heat rejected. This is a coarse approximation, not a full
-        cooling-tower model -- there is no per-tower design data to
-        calibrate against."""
-        from src.aws.serverless.lambda_weather_fetcher import compute_psychrometrics
-
-        rh = self._estimate_relative_humidity(ambient_c)
-        wet_bulb_c = compute_psychrometrics(ambient_c, rh)["wet_bulb_temp_c"]
-
-        latent_heat_kj_per_kg = 2260.0  # water, at cooling-tower operating temps
-        blowdown_drift_factor = 1.25    # extra water lost to blowdown/drift beyond pure evaporation
-        # Humid air (high wet-bulb) makes evaporation less efficient, so the
-        # tower needs proportionally more water per kW rejected to compensate.
-        humidity_penalty = 1.0 + max(0.0, wet_bulb_c - 15.0) / 40.0
-
-        water_kg_per_hr = (chiller_kw * 3600.0 / latent_heat_kj_per_kg) * blowdown_drift_factor * humidity_penalty
-        water_l_per_hr = water_kg_per_hr  # 1 kg water ~= 1 L
-        return float(water_l_per_hr / max(0.01, it_power_kw))
+        """Water Usage Effectiveness (L/kWh-IT); delegates to the shared
+        physics model (src/digital_twin/physics_dynamics.py) so the RL
+        environment and the live simulator use one water model."""
+        return self._physics.wue(chiller_kw, it_power_kw, ambient_c)
 
     def step(self) -> TelemetryPayload:
         self._step += 1
@@ -223,6 +201,8 @@ class PhysicsSimulator:
             if "valve_split_pct" in ctrl:
                 self.valve_split_pct = float(max(0.0, min(100.0, ctrl["valve_split_pct"])))
             self._pending_control = None
+
+        self.it_history.append(self.it_power_kw)
 
         # Thermal + power model: the SAME Frontier-calibrated physics the RL
         # environment uses (src/digital_twin/physics_dynamics.py), evaluated at

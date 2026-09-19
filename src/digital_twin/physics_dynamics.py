@@ -58,6 +58,27 @@ def load_calibrated_constants() -> "CoolingConstants":
     return c
 
 
+def estimate_relative_humidity(ambient_c: float) -> float:
+    """Coarse RH estimate anti-correlated with temperature (same relation as
+    lambda_weather_fetcher.get_ambient_weather: rh_base - diurnal_offset * 2.5)."""
+    return float(max(20.0, min(95.0, 60.0 - (ambient_c - 22.0) * 2.5)))
+
+
+def wet_bulb_stull(dry_bulb_c: float, rh_pct: float) -> float:
+    """Stull (2011) wet-bulb approximation; identical to
+    lambda_weather_fetcher.compute_psychrometrics()["wet_bulb_temp_c"]
+    (a unit test keeps the two in sync -- this module is imported by the RL
+    training scripts, which run without the project root on sys.path)."""
+    t, rh = dry_bulb_c, rh_pct
+    return float(
+        t * np.arctan(0.151977 * np.sqrt(rh + 8.313659))
+        + np.arctan(t + rh)
+        - np.arctan(rh - 1.676331)
+        + 0.00391838 * (rh ** 1.5) * np.arctan(0.023101 * rh)
+        - 4.686035
+    )
+
+
 class LiquidCoolingPhysics:
     def __init__(self, c: CoolingConstants = None):
         self.c = c if c is not None else load_calibrated_constants()
@@ -110,3 +131,18 @@ class LiquidCoolingPhysics:
         if inlet_c < self.c.SLA_MIN_INLET_C:
             return True, float(self.c.SLA_MIN_INLET_C - inlet_c)
         return False, 0.0
+
+    def water_use_l_per_hr(self, chiller_kw: float, ambient_c: float) -> float:
+        """Evaporative cooling-tower water consumption (L/h) for the heat the
+        chiller plant rejects. Humid air (high wet-bulb) makes evaporation less
+        effective, so more water is needed per kW rejected. A coarse model:
+        there is no per-tower design data to calibrate against."""
+        wet_bulb_c = wet_bulb_stull(ambient_c, estimate_relative_humidity(ambient_c))
+        latent_heat_kj_per_kg = 2260.0
+        blowdown_drift_factor = 1.25          # extra water lost to blowdown / drift
+        humidity_penalty = 1.0 + max(0.0, wet_bulb_c - 15.0) / 40.0
+        return float(chiller_kw * 3600.0 / latent_heat_kj_per_kg * blowdown_drift_factor * humidity_penalty)
+
+    def wue(self, chiller_kw: float, it_kw: float, ambient_c: float) -> float:
+        """Water Usage Effectiveness in L per kWh of IT energy."""
+        return float(self.water_use_l_per_hr(chiller_kw, ambient_c) / max(0.01, it_kw))

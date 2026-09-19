@@ -30,6 +30,7 @@ from src.digital_twin.physics_dynamics import (  # noqa: E402
 DATA = os.path.join(PROJECT_ROOT, "dataset", "raw", "frontier2023_cooling_telemetry.parquet")
 OUT_CONST = os.path.join(PROJECT_ROOT, "src", "digital_twin", "calibrated_constants.json")
 OUT_RESULT = os.path.join(PROJECT_ROOT, "results", "twin_fidelity.json")
+OUT_PROFILE = os.path.join(PROJECT_ROOT, "src", "digital_twin", "frontier_it_profile.json")
 
 THERMAL_PARAMS = ["HEAT_CAPTURE", "INLET_OFFSET_C", "INLET_AMBIENT_COEF", "OUTLET_K"]
 POWER_PARAMS = ["PUMP_RATED_KW", "COP_A", "COP_B"]
@@ -159,6 +160,14 @@ def main() -> None:
     }
     with open(OUT_RESULT, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
+
+    # Hour-of-day shape of the real IT load (normalised to mean 1): the base
+    # workload profile for the carbon-aware scheduler.
+    hourly = d.assign(hour=pd.to_datetime(d.timestamp).dt.hour).groupby("hour").it_power_mw.mean()
+    shape = (hourly / hourly.mean()).reindex(range(24)).round(5).tolist()
+    with open(OUT_PROFILE, "w", encoding="utf-8") as f:
+        json.dump({"source": "Frontier2023 mean IT power by hour of day, normalised to mean 1",
+                   "hourly_shape": shape}, f, indent=2)
     print(json.dumps({"before": before, "after": after, "constants": consts}, indent=2))
 
 
