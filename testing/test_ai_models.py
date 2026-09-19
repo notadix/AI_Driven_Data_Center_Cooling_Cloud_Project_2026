@@ -246,3 +246,25 @@ class TestPhase2Additions:
         assert np.all(np.abs(a_hot) <= 1.0) and np.all(np.abs(a_cold) <= 1.0)
         assert a_cold[0] > a_hot[0]     # warmer supply when it is cool outside
         assert a_cold[3] > a_hot[3]     # economizer only when outdoor air is cool
+
+
+class TestSageMakerHandlerShield:
+    def test_endpoint_applies_the_safety_shield(self, tmp_path):
+        import json, shutil, sys, types
+        import numpy as np
+        root = os.path.dirname(os.path.dirname(__file__))
+        shutil.copy(os.path.join(root, "models", "safe_ppo_agent_v1.pt"), tmp_path / "safe_ppo_agent_v1.pt")
+        sys.path.insert(0, os.path.join(root, "src", "aws", "sagemaker"))
+        import model_handler as mh
+        mh._ppo_agent = mh._fno_model = mh._shield = None
+        mh.initialize(types.SimpleNamespace(system_properties={"model_dir": str(tmp_path)}))
+        assert mh._shield is not None                       # checkpoint was trained behind a shield
+        # hot ambient, supply at the ceiling: any unshielded warm-supply action would breach the SLA
+        obs = [19000, 30.0, 300, 23.8, 32, 19000, 26.3, 34, 900, 1.05]
+        out = mh.inference({"type": "setpoints", "observation": obs})
+        assert "shield_correction" in out
+        a = np.array([(out["control"]["delta_supply_c"] / 1.5),
+                      (out["control"]["pump_speed_pct"] - 35.0) / 65.0 * 2 - 1,
+                      (out["control"]["fan_speed_pct"] - 30.0) / 70.0 * 2 - 1,
+                      (out["control"]["valve_split_pct"] / 40.0) * 2 - 1], dtype=np.float32)
+        assert mh._shield.is_safe(np.array(obs, dtype=np.float32), a)

@@ -198,3 +198,23 @@ class TestOnlineAdaptationToPlantDrift:
             true_bias = 0.05 * k                       # slow drift up to 3 C
             c.update(22.0 + true_bias, 22.0 + c.bias_c)
         assert abs(c.bias_c - true_bias) < 0.3
+
+
+class TestFreshTelemetryOnly:
+    def test_same_payload_is_not_acted_on_twice(self):
+        loop = AutoControlLoop()
+        p = dict(GOOD, timestamp_iso="2026-01-01T00:00:01Z")
+        assert loop.compute_control("F", "C", state(), p) is not None
+        assert loop.compute_control("F", "C", state(), dict(p)) is None          # nothing new to react to
+        assert loop.compute_control("F", "C", state(), dict(p, timestamp_iso="2026-01-01T00:00:02Z")) is not None
+
+    def test_payloads_without_timestamp_are_always_processed(self):
+        loop = AutoControlLoop()
+        assert loop.compute_control("F", "C", state(), dict(GOOD)) is not None
+        assert loop.compute_control("F", "C", state(), dict(GOOD)) is not None
+
+    def test_streams_are_tracked_per_crac(self):
+        loop = AutoControlLoop()
+        p = dict(GOOD, timestamp_iso="2026-01-01T00:00:01Z")
+        assert loop.compute_control("A", "C", state(), p) is not None
+        assert loop.compute_control("B", "C", state(), dict(p)) is not None

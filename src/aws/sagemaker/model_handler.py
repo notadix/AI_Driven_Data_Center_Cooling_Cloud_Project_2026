@@ -1,7 +1,6 @@
 import os
 import sys
 import json
-import io
 import numpy as np
 import torch
 
@@ -11,10 +10,12 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "ai", "rl"))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "digital_twin"))
 
 from fno_model import FNO2d
-from safe_ppo import SafePPOAgent, ActorCritic
+from safe_ppo import ActorCritic
+from safety_shield import SafetyShield
 
 _fno_model = None
 _ppo_agent = None
+_shield = None
 _norm_stats = None
 _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -28,7 +29,7 @@ def _load_norm_stats(model_dir: str):
 
 
 def initialize(context):
-    global _fno_model, _ppo_agent, _norm_stats
+    global _fno_model, _ppo_agent, _norm_stats, _shield
     model_dir = context.system_properties.get("model_dir", "/opt/ml/model")
 
     fno_path = os.path.join(model_dir, "fno_surrogate_v1.pt")
@@ -48,6 +49,8 @@ def initialize(context):
         _ppo_agent = ActorCritic(hp["state_dim"], hp["action_dim"]).to(_device)
         _ppo_agent.load_state_dict(ckpt["ac_state_dict"])
         _ppo_agent.eval()
+        # Same runtime safety shield the backend's control loop applies (the policy was trained behind it).
+        _shield = SafetyShield() if ckpt.get("shield", False) else None
 
     _norm_stats = _load_norm_stats(model_dir)
 
@@ -77,6 +80,10 @@ def inference(data: dict) -> dict:
         with torch.no_grad():
             mean, _, vr, vc = _ppo_agent(s)
             action = mean.squeeze(0).cpu().tolist()
+        correction = 0.0
+        if _shield is not None:
+            safe, correction = _shield.filter(obs, np.array(action, dtype=np.float32))
+            action = [float(v) for v in safe]
         delta_supply = action[0] * 1.5
         pump_pct = 35.0 + (action[1] + 1.0) * 0.5 * 65.0
         fan_pct = 30.0 + (action[2] + 1.0) * 0.5 * 70.0
@@ -91,6 +98,7 @@ def inference(data: dict) -> dict:
             },
             "v_reward": float(vr.item()),
             "v_cost": float(vc.item()),
+            "shield_correction": round(float(correction), 4),
         }
 
     return {"error": "No valid model loaded for request type: " + request_type}

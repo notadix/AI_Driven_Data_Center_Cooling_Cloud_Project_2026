@@ -3,10 +3,10 @@ import os
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from typing import Tuple, Dict, Any, Optional, Sequence
+from typing import Tuple, Dict, Optional, Sequence
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from physics_dynamics import LiquidCoolingPhysics, CoolingConstants
+from physics_dynamics import LiquidCoolingPhysics
 
 
 class DataCenterCoolingEnv(gym.Env):

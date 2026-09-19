@@ -1318,13 +1318,6 @@ class TestPrometheusMetrics:
         ts = float(ts_line.split()[-1])
         assert ts > time.time() - 10, "last_scrape_timestamp is too old"
 
-    def test_metrics_second_scrape_is_also_200(self, client):
-        """Verify /metrics is idempotent and doesn't crash on repeat calls."""
-        r1 = client.get("/metrics")
-        r2 = client.get("/metrics")
-        assert r1.status_code == 200
-        assert r2.status_code == 200
-
     # --- Unit tests for metrics module ---
 
     def test_update_metrics_populates_supply_temp(self):

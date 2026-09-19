@@ -26,7 +26,7 @@ import math
 import os
 import statistics
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
@@ -157,7 +157,6 @@ class DriftDetector:
         if LOCAL_MODE:
             # Generate synthetic window of telemetry
             import random
-            import time as _time
             records = []
             for i in range(200):
                 drift_bias = 0.0
@@ -194,7 +193,6 @@ class DriftDetector:
         # Reference distributions: the calibrated twin's nominal operating
         # point (PUE ~1.05 as in the real Frontier data; rack inlet ~19 C).
         ref_pue_mean, ref_pue_std = REF_PUE_MEAN, REF_PUE_STD
-        ref_inlet_mean, ref_inlet_std = REF_INLET_MEAN, REF_INLET_STD
 
         import random
         ref_pues = [random.gauss(ref_pue_mean, ref_pue_std) for _ in range(len(pues))]

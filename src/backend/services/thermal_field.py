@@ -48,12 +48,11 @@ class ThermalFieldService:
         self._tried = False
 
     def _load(self) -> None:
-        if self._tried:
+        if self._tried:          # only set AFTER loading finished (see below)
             return
-        with self._lock:
+        with self._lock:         # concurrent first requests wait here instead of seeing a half-loaded service
             if self._tried:
                 return
-            self._tried = True
             try:
                 import torch
                 from src.ai.surrogate.fno_model import FNO2d
@@ -68,6 +67,8 @@ class ThermalFieldService:
             except Exception as e:  # missing checkpoint / stats
                 self._error = str(e)
                 logger.warning("FNO thermal surrogate unavailable: %s", e)
+            finally:
+                self._tried = True
 
     @property
     def available(self) -> bool:

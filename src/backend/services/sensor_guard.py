@@ -16,7 +16,7 @@ controller instead of trusting a stale, repaired observation.
 """
 
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 # field -> (min, max, max absolute change per step)
 FIELD_LIMITS: Dict[str, Tuple[float, float, float]] = {

@@ -90,6 +90,7 @@ class AutoControlLoop:
         # Per-CRAC online calibration of the shield's inlet-temperature model (plant drift).
         self._calibrators: Dict[Any, Any] = {}
         self._pending_pred: Dict[Any, float] = {}
+        self._last_ts: Dict[Any, Any] = {}
         self._agent = self._try_load_agent()
 
     def _try_load_agent(self):
@@ -145,6 +146,17 @@ class AutoControlLoop:
         The telemetry is validated first (SensorGuard); a corrupt payload is repaired from the last
         good reading, and if the fault persists (or there is no good reading to repair from) the
         conservative PID baseline drives the CRAC instead of the learned policy."""
+        key = (facility_id, crac_id)
+        # Act only on NEW telemetry. The loop can tick faster than the simulator publishes; deciding
+        # twice on the same observation applied the policy's supply-temperature delta twice, and
+        # made the online calibrator compare a prediction for the new setpoint with a reading that
+        # was taken before that setpoint took effect.
+        ts = payload.get("timestamp_iso")
+        fresh = ts is None or ts != self._last_ts.get(key)
+        if not fresh:
+            return None
+        self._last_ts[key] = ts
+
         clean, flags, fallback = self._guard.validate(facility_id, crac_id, payload)
         obs = _build_obs(state, clean)
         if obs is None:
@@ -159,7 +171,6 @@ class AutoControlLoop:
             self._last_correction = 0.0
             return _action_to_control(action), "baseline_pid", "SENSOR_FAULT"
 
-        key = (facility_id, crac_id)
         if self._shield is not None:
             from src.ai.rl.safety_shield import OnlineInletCalibrator
 

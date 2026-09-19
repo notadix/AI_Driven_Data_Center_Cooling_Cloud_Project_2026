@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Normal
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict
 import numpy as np
 
 

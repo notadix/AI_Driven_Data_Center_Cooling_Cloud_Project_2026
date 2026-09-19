@@ -23,9 +23,9 @@ import random
 import threading
 import time
 from collections import deque
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
@@ -446,6 +446,8 @@ class IoTSimulator:
         success_aws = False
         if self._aws_publisher:
             success_aws = self._aws_publisher.publish(topic, payload_json)
+            if not success_aws:
+                logger.warning("IoT Core publish failed for %s; telemetry still delivered locally", topic)
         payload_dict = json.loads(payload_json)
         # Always publish to local bus regardless
         try:
