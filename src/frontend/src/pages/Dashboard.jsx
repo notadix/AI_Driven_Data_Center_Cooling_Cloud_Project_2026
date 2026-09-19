@@ -46,6 +46,8 @@ export default function Dashboard() {
     alarms,
     submitControlAction,
     setControlMode,
+    offline,
+    hasData,
   } = useTelemetryWebSocket(selectedFacility);
 
   // The drawer shows the selected rack's LIVE values: selectedRack is only a
@@ -59,6 +61,12 @@ export default function Dashboard() {
     telemetry.server_outlet_temp_c != null && telemetry.server_inlet_temp_c != null
       ? telemetry.server_outlet_temp_c - telemetry.server_inlet_temp_c
       : 0;
+
+  // Live SLA compliance: share of racks whose inlet is inside the ASHRAE envelope right now.
+  const slaOkPct = spatialGrid.length
+    ? (100 * spatialGrid.filter((n) => n.ashrae_status === 'NORMAL').length) / spatialGrid.length
+    : null;
+  const pueVsTargetPct = ((telemetry.pue - 1.15) / 1.15) * 100;
 
   const itPowerMw = (telemetry.it_power_kw / 1000.0).toFixed(2);
   const coolingPowerMw = (telemetry.cooling_power_kw / 1000.0).toFixed(2);
@@ -109,22 +117,22 @@ export default function Dashboard() {
 
           {/* Connection Status Pill */}
           <div className="flex items-center space-x-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 shadow-glow-green animate-pulse' : 'bg-amber-400 animate-ping'}`} />
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 shadow-glow-green animate-pulse' : (offline ? 'bg-red-500' : 'bg-amber-400 animate-ping')}`} />
             <span className="font-mono text-[11px] font-semibold text-slate-300">
-              {connected ? 'LIVE WS (10Hz)' : 'REST POLLING'}
+              {connected ? 'LIVE WS' : (offline ? 'BACKEND OFFLINE' : 'REST POLLING')}
             </span>
           </div>
 
           {/* ASHRAE SLA Badge */}
           <div className="flex items-center space-x-1.5 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs text-emerald-400 font-semibold font-mono">
             <ShieldCheck className="w-4 h-4" />
-            <span>99.98% SLA OK</span>
+            <span>{slaOkPct === null ? 'SLA --' : `${slaOkPct.toFixed(1)}% racks in SLA`}</span>
           </div>
         </div>
       </header>
 
       {/* ── Top Level Real-Time KPI Cards ────────────────────────────────────── */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
+      <section className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 transition-opacity ${hasData ? '' : 'opacity-40'}`} title={hasData ? undefined : 'Waiting for the first telemetry reading'}>
         {/* PUE Card */}
         <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col justify-between">
           <div className="flex justify-between items-start text-xs text-slate-400">
@@ -135,7 +143,9 @@ export default function Dashboard() {
             <div className="text-2xl font-black font-mono text-slate-100">
               {telemetry.pue?.toFixed(3)}
             </div>
-            <span className="text-[10px] text-emerald-400 font-medium">Target: 1.150 (-14.2%)</span>
+            <span className={`text-[10px] font-medium ${pueVsTargetPct <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+              Target: 1.150 ({pueVsTargetPct <= 0 ? '' : '+'}{pueVsTargetPct.toFixed(1)}%)
+            </span>
           </div>
         </div>
 

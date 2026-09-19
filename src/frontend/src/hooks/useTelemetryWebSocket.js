@@ -11,6 +11,12 @@ import { API_BASE, WS_BASE } from '../config';
  */
 export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   const [connected, setConnected] = useState(false);
+  // True once REST polling also fails: the backend is unreachable and the values shown are stale.
+  const [offline, setOffline] = useState(false);
+  // False until the first real reading arrives: until then `telemetry` holds placeholder values.
+  const [hasData, setHasData] = useState(false);
+  // Synthetic jitter is only for standalone UI demos (?demo=1); it must never pass for live data.
+  const demoMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1';
   const [telemetry, setTelemetry] = useState({
     server_inlet_temp_c: 22.4,
     server_outlet_temp_c: 35.8,
@@ -115,6 +121,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       ws.onopen = () => {
         if (wsRef.current !== ws) return;
         setConnected(true);
+        setOffline(false);
         reconnectAttempts.current = 0;
       };
 
@@ -124,6 +131,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
           const data = JSON.parse(evt.data);
           if (data.type === 'telemetry' && data.payload) {
             const p = data.payload;
+            setHasData(true);
 
             // Each CRAC reports only its own representative rack's power
             // (realistic ~10-28kW). Sum across every CRAC seen so far so
@@ -223,6 +231,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
     // Drop any accumulated per-CRAC power readings from the previous
     // facility so its stale numbers can't leak into this one's aggregate.
     cracPowerRef.current = {};
+    setHasData(false);
     setAlarms([]);
     setSpatialGrid(generateInitialGrid());
     connectWs();
@@ -233,7 +242,9 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
           const res = await fetch(`${API_BASE}/api/v1/telemetry/latest/${facilityId}`);
           if (res.ok) {
             const json = await res.json();
+            setOffline(false);
             if (json.data && json.data.records && json.data.records.length > 0) {
+              setHasData(true);
               const rec = json.data.records[0];
               setTelemetry((prev) => ({
                 ...prev,
@@ -244,7 +255,9 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
             }
           }
         } catch {
-          // If completely offline, run synthetic micro-jitter so UI remains dynamically alive
+          setOffline(true);
+          if (!demoMode) return;   // backend unreachable: keep the last real values, do not invent new ones
+          // ?demo=1 only: synthetic micro-jitter so a standalone UI preview stays animated
           setTelemetry((prev) => {
             const jitter = (Math.random() - 0.5) * 0.1;
             const newInlet = Math.max(18.0, Math.min(26.5, prev.server_inlet_temp_c + jitter));
@@ -283,7 +296,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };
-  }, [connectWs, facilityId]);
+  }, [connectWs, facilityId, demoMode]);
 
   // Submit operator control action
   const submitControlAction = async (cracId, actionPayload) => {
@@ -329,5 +342,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
     alarms,
     submitControlAction,
     setControlMode,
+    offline,
+    hasData,
   };
 }
