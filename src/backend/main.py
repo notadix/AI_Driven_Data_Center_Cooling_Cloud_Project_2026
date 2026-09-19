@@ -24,6 +24,8 @@ from prometheus_client import CONTENT_TYPE_LATEST
 from src.aws.iot.iot_publisher import get_simulator
 from src.backend.api.v1.telemetry import router as telemetry_router
 from src.backend.api.v1.control import router as control_router
+from src.backend.api.v1.optimization import router as optimization_router
+from src.backend.api.v1.forecast import router as forecast_router
 from src.backend.websockets.stream import router as ws_router
 from src.backend.services.auto_control import get_auto_control_loop
 from src.backend.metrics import generate_metrics_output
@@ -86,6 +88,8 @@ app.add_middleware(
 
 app.include_router(telemetry_router, prefix="/api/v1/telemetry", tags=["Telemetry"])
 app.include_router(control_router,   prefix="/api/v1/control",   tags=["Control"])
+app.include_router(optimization_router, prefix="/api/v1/optimization", tags=["Optimization"])
+app.include_router(forecast_router, prefix="/api/v1/forecast", tags=["Forecast"])
 app.include_router(ws_router,        prefix="/ws",               tags=["WebSocket"])
 
 

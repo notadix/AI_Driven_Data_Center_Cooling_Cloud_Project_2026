@@ -5,6 +5,8 @@ import PUEGauge from '../components/PUEGauge';
 import CarbonTracker from '../components/CarbonTracker';
 import SHAPExplanation from '../components/SHAPExplanation';
 import OperatorControlPanel from '../components/OperatorControlPanel';
+import CarbonSchedule from '../components/CarbonSchedule';
+import ForecastPanel from '../components/ForecastPanel';
 import {
   Activity,
   Server,
@@ -293,6 +295,12 @@ export default function Dashboard() {
           totalFacilityKw={(telemetry.it_power_kw || 18450) + (telemetry.cooling_power_kw || 2480)}
           region={FACILITY_REGIONS[selectedFacility] || 'us-east-1'}
         />
+
+        {/* Carbon-aware workload schedule */}
+        <CarbonSchedule facilityId={selectedFacility} />
+
+        {/* Predictive layer: load forecast + FNO thermal surrogate */}
+        <ForecastPanel facilityId={selectedFacility} cracId={selectedRack?.crac_id || 'CRAC-01'} />
 
         {/* Explainable AI (SHAP) Waterfall */}
         <SHAPExplanation
