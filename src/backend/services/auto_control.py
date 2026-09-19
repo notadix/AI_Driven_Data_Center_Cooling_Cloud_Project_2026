@@ -24,6 +24,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
+from src.digital_twin.physics_dynamics import ZONE_SCALE
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -34,11 +36,18 @@ def _build_obs(state: Any, payload: Dict[str, Any]) -> Optional[np.ndarray]:
     """Builds the 10-dim observation vector matching cooling_sim_env.py's
     ordering, combining live PhysicsSimulator state (for ambient_c, which
     isn't part of the published telemetry payload) with the latest
-    published telemetry (for everything else)."""
+    published telemetry (for everything else).
+
+    The policy is trained on the hall-scale Gymnasium environment (IT load
+    ~10-28 MW), while each simulated CRAC reports ONE representative rack
+    (~10-28 kW). Extensive quantities (IT power, cooling power) are therefore
+    multiplied by ZONE_SCALE so the agent sees the operating range it was
+    trained on; intensive quantities (temperatures, flow, PUE) are passed
+    through unchanged."""
     try:
         return np.array(
             [
-                float(state.it_power_kw),
+                float(state.it_power_kw) * ZONE_SCALE,
                 float(state.ambient_c),
                 float(payload["grid_carbon_gco2_kwh"]),
                 float(payload["fws_supply_temp_c"]),
@@ -46,7 +55,7 @@ def _build_obs(state: Any, payload: Dict[str, Any]) -> Optional[np.ndarray]:
                 float(payload["flow_rate_lpm"]),
                 float(payload["server_inlet_temp_c"]),
                 float(payload["server_outlet_temp_c"]),
-                float(payload["cooling_power_mw"]) * 1000.0,
+                float(payload["cooling_power_mw"]) * 1000.0 * ZONE_SCALE,
                 float(payload["pue"]),
             ],
             dtype=np.float32,
@@ -63,7 +72,9 @@ def _action_to_control(a: np.ndarray) -> Dict[str, float]:
         "delta_supply_c": float(np.clip(a[0] * 1.5, -2.0, 2.0)),
         "pump_speed_pct": float(np.clip(35.0 + (a[1] + 1.0) * 0.5 * 65.0, 35.0, 100.0)),
         "fan_speed_pct": float(np.clip(30.0 + (a[2] + 1.0) * 0.5 * 70.0, 30.0, 100.0)),
-        "valve_split_pct": float(np.clip((a[3] + 1.0) * 0.5 * 100.0, 0.0, 100.0)),
+        # Same 0-40% range the environment maps this action to during training
+        # (cooling_sim_env.py, sagemaker/model_handler.py); it used to be 0-100%.
+        "valve_split_pct": float(np.clip((a[3] + 1.0) * 0.5 * 40.0, 0.0, 40.0)),
     }
 
 

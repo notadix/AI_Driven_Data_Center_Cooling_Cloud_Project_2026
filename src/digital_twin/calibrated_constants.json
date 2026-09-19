@@ -1,0 +1,15 @@
+{
+  "source": "scripts/calibrate_twin.py on Frontier2023 (fit: first 70% of rows)",
+  "constants": {
+    "HEAT_CAPTURE": 0.840443,
+    "INLET_OFFSET_C": 2.516213,
+    "INLET_AMBIENT_COEF": 0.147986,
+    "OUTLET_K": 0.648205,
+    "PUMP_RATED_KW": 78.240507,
+    "COP_A": 17.985196,
+    "COP_B": 0.256694,
+    "FIXED_OVERHEAD_KW": 0.0,
+    "FREE_COOL_MARGIN_C": 1000.0,
+    "COP_MAX": 40.0
+  }
+}

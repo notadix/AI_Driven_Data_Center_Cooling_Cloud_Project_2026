@@ -128,8 +128,8 @@ class TestMetricsMatchTelemetry:
         )
         scraped = float(line.split()[-1])
         # The scrape reads the same latest payload (allow one publish tick of drift).
-        assert abs(scraped - latest[topic]["pue"]) < 0.5
-        assert scraped > 1.2  # the old setpoint-only estimate ignored the chiller and sat near 1.4 regardless
+        assert abs(scraped - latest[topic]["pue"]) < 0.05
+        assert scraped > 1.0
 
 
 class TestHistoryReturnsNewestRecords:
@@ -154,3 +154,55 @@ class TestHistoryReturnsNewestRecords:
         )
         seqs = [r["raw"]["seq"] for r in rows]
         assert seqs == list(range(90, 100))  # newest 10, oldest-first
+
+
+class TestAgentObservationScale:
+    """The policy is trained on the hall-scale Gym env; live per-rack telemetry must be
+    scaled into that range and the action->setpoint mapping must match training."""
+
+    def test_live_observations_inside_training_bounds(self, client):
+        from src.aws.iot.iot_publisher import get_simulator
+        from src.backend.services.auto_control import _build_obs
+        from src.digital_twin.cooling_sim_env import DataCenterCoolingEnv
+
+        sim = get_simulator()
+        lo, hi = DataCenterCoolingEnv.OBS_LOW, DataCenterCoolingEnv.OBS_HIGH
+        checked = 0
+        for t in sim.topology:
+            state = sim.get_simulator_state(t["facility_id"], t["crac_id"])
+            payload = sim.get_latest_telemetry().get(
+                f"datacenter/cooling/telemetry/{t['facility_id']}/{t['crac_id']}"
+            )
+            if not payload:
+                continue
+            obs = _build_obs(state, payload)
+            assert obs is not None
+            assert (obs >= lo).all() and (obs <= hi).all(), (t, obs)
+            checked += 1
+        assert checked >= 4
+
+    def test_valve_mapping_matches_training(self):
+        import numpy as np
+        from src.backend.services.auto_control import _action_to_control
+        from src.digital_twin.cooling_sim_env import DataCenterCoolingEnv
+
+        env = DataCenterCoolingEnv()
+        env.reset(seed=0)
+        for a3 in (-1.0, 0.0, 1.0):
+            action = np.array([0.0, 0.0, 0.0, a3], dtype=np.float32)
+            env.step(action)
+            assert abs(_action_to_control(action)["valve_split_pct"] - env.valve_pct) < 1e-6
+
+    def test_pump_fan_mapping_matches_training(self):
+        import numpy as np
+        from src.backend.services.auto_control import _action_to_control
+        from src.digital_twin.cooling_sim_env import DataCenterCoolingEnv
+
+        env = DataCenterCoolingEnv()
+        env.reset(seed=0)
+        for a in (-1.0, 0.3, 1.0):
+            action = np.array([0.0, a, a, 0.0], dtype=np.float32)
+            env.step(action)
+            ctl = _action_to_control(action)
+            assert abs(ctl["pump_speed_pct"] - env.pump_pct) < 1e-6
+            assert abs(ctl["fan_speed_pct"] - env.fan_pct) < 1e-6

@@ -27,7 +27,7 @@ class DataCenterCoolingEnv(gym.Env):
     metadata = {"render_modes": []}
 
     OBS_LOW = np.array([5000.0, -5.0, 50.0, 10.0, 15.0, 1000.0, 10.0, 20.0, 50.0, 1.0], dtype=np.float32)
-    OBS_HIGH = np.array([30000.0, 45.0, 700.0, 30.0, 80.0, 10000.0, 35.0, 75.0, 4500.0, 2.0], dtype=np.float32)
+    OBS_HIGH = np.array([30000.0, 45.0, 700.0, 30.0, 80.0, 30000.0, 35.0, 75.0, 4500.0, 2.0], dtype=np.float32)
 
     def __init__(
         self,
@@ -37,7 +37,7 @@ class DataCenterCoolingEnv(gym.Env):
         w_carbon: float = 0.30,
     ):
         super().__init__()
-        self.physics = LiquidCoolingPhysics(CoolingConstants())
+        self.physics = LiquidCoolingPhysics()  # Frontier-calibrated constants
         self.max_steps = max_steps
         self.w_energy, self.w_pue, self.w_carbon = w_energy, w_pue, w_carbon
         self._step = 0
@@ -54,7 +54,7 @@ class DataCenterCoolingEnv(gym.Env):
         self.valve_pct = 20.0
 
     def _obs(self) -> np.ndarray:
-        flow_lpm = 2000.0 + (self.pump_pct / 100.0) * 5500.0
+        flow_lpm = self.physics.flow_lpm(self.pump_pct)
         ret, inlet, outlet = self.physics.thermal_balance(self.it_kw, self.supply_c, flow_lpm, self.ambient_c)
 
         # Free-air economizer mixing: the valve blends ambient air into the
@@ -65,7 +65,9 @@ class DataCenterCoolingEnv(gym.Env):
             (self.valve_pct / 100.0) * (1.0 - max(0.0, (self.ambient_c - 18.0) / 20.0)),
             0.0, 1.0,
         )
-        mixed_inlet = (1.0 - free_cool_frac) * inlet + free_cool_frac * min(self.ambient_c, 22.0)
+        # Outside air can cut chiller load but cannot cool the rack inlet below
+        # the supply setpoint (same floor as the IoT simulator).
+        mixed_inlet = max(self.supply_c, (1.0 - free_cool_frac) * inlet + free_cool_frac * min(self.ambient_c, 22.0))
         outlet = outlet + (mixed_inlet - inlet)
         inlet = mixed_inlet
 
@@ -75,7 +77,7 @@ class DataCenterCoolingEnv(gym.Env):
         # Free cooling offsets part of the chiller's share of cooling power;
         # PUE is recomputed from the adjusted cooling load to stay consistent.
         cooling_kw = float(cooling_kw * (1.0 - 0.3 * free_cool_frac))
-        pue = float((self.it_kw + cooling_kw + 80.0) / max(1.0, self.it_kw))
+        pue = float((self.it_kw + cooling_kw + self.physics.c.FIXED_OVERHEAD_KW) / max(1.0, self.it_kw))
         return np.array(
             [self.it_kw, self.ambient_c, self.carbon, self.supply_c, ret, flow_lpm, inlet, outlet, cooling_kw, pue],
             dtype=np.float32,

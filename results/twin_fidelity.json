@@ -1,0 +1,90 @@
+{
+  "method": "Chronological split of Frontier2023 (rows with flow>1000 LPM and IT>1 MW): constants fitted on the first 70%, error measured on the held-out last 30%.",
+  "rows": {
+    "total": 49723,
+    "fit": 34806,
+    "held_out": 14917
+  },
+  "held_out_original_constants": {
+    "return_temp_c": {
+      "mape_pct": 7.661,
+      "mae": 2.3402
+    },
+    "server_inlet_temp_c": {
+      "mape_pct": 2.554,
+      "mae": 0.5
+    },
+    "server_outlet_temp_c": {
+      "mape_pct": 29.249,
+      "mae": 8.7271
+    },
+    "cooling_power_kw": {
+      "mape_pct": 91.71,
+      "mae": 534.8056
+    },
+    "pue": {
+      "mape_pct": 3.778,
+      "mae": 0.0399
+    },
+    "mean_mape_pct": 26.99
+  },
+  "held_out_calibrated_constants": {
+    "return_temp_c": {
+      "mape_pct": 7.225,
+      "mae": 2.2492
+    },
+    "server_inlet_temp_c": {
+      "mape_pct": 0.083,
+      "mae": 0.0162
+    },
+    "server_outlet_temp_c": {
+      "mape_pct": 8.374,
+      "mae": 2.4024
+    },
+    "cooling_power_kw": {
+      "mape_pct": 12.386,
+      "mae": 72.2472
+    },
+    "pue": {
+      "mape_pct": 0.645,
+      "mae": 0.0069
+    },
+    "mean_mape_pct": 5.743
+  },
+  "train_calibrated_constants": {
+    "return_temp_c": {
+      "mape_pct": 4.256,
+      "mae": 1.3158
+    },
+    "server_inlet_temp_c": {
+      "mape_pct": 1.331,
+      "mae": 0.3605
+    },
+    "server_outlet_temp_c": {
+      "mape_pct": 5.834,
+      "mae": 2.0448
+    },
+    "cooling_power_kw": {
+      "mape_pct": 17.742,
+      "mae": 106.4009
+    },
+    "pue": {
+      "mape_pct": 0.985,
+      "mae": 0.0106
+    },
+    "mean_mape_pct": 6.03
+  },
+  "calibrated_constants": {
+    "HEAT_CAPTURE": 0.840443,
+    "INLET_OFFSET_C": 2.516213,
+    "INLET_AMBIENT_COEF": 0.147986,
+    "OUTLET_K": 0.648205,
+    "PUMP_RATED_KW": 78.240507,
+    "COP_A": 17.985196,
+    "COP_B": 0.256694,
+    "FIXED_OVERHEAD_KW": 0.0,
+    "FREE_COOL_MARGIN_C": 1000.0,
+    "COP_MAX": 40.0
+  },
+  "report_target_mape_pct": 2.0
+}

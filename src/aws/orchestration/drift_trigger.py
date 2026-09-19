@@ -58,6 +58,17 @@ AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 LOCAL_MODE = os.environ.get("LOCAL_MODE", "false").lower() == "true"
 
 # Drift thresholds
+# Nominal operating distribution of the (Frontier-calibrated) twin, used as the
+# drift reference: measured over the default 3-facility simulation.
+REF_PUE_MEAN, REF_PUE_STD = 1.046, 0.004
+REF_INLET_MEAN, REF_INLET_STD = 19.6, 1.0
+REF_INLET_MIN, REF_INLET_MAX = 18.5, 23.0   # supply-temperature floor .. ceiling of the nominal regime
+
+
+def _ref_inlet_sample(mean_shift: float = 0.0) -> float:
+    import random
+    return round(min(REF_INLET_MAX, max(REF_INLET_MIN, random.gauss(REF_INLET_MEAN + mean_shift, REF_INLET_STD))), 3)
+
 THRESHOLDS = {
     "pue_mae": float(os.environ.get("DRIFT_THRESHOLD_PUE_MAE", "0.05")),
     "inlet_temp_mae_c": float(os.environ.get("DRIFT_THRESHOLD_INLET_MAE", "0.8")),
@@ -83,12 +94,14 @@ def compute_psi(expected: List[float], actual: List[float], bins: int = 10) -> f
     if not expected or not actual:
         return 0.0
 
-    all_vals = expected + actual
-    min_v, max_v = min(all_vals), max(all_vals)
-    if min_v == max_v:
-        return 0.0
-
-    bin_edges = [min_v + (max_v - min_v) * i / bins for i in range(bins + 1)]
+    # Quantile bins of the EXPECTED (reference) distribution -- the standard PSI
+    # construction. Equal-width bins over the pooled range put almost no mass
+    # in the tail bins, so sampling noise alone pushed a no-drift window well
+    # above the 0.2 alarm threshold.
+    ordered = sorted(expected)
+    n = len(ordered)
+    inner = [ordered[min(n - 1, int(n * i / bins))] for i in range(1, bins)]
+    bin_edges = [float("-inf")] + sorted(set(inner)) + [float("inf")]
 
     def bucket(vals, edges):
         counts = [0] * (len(edges) - 1)
@@ -97,10 +110,8 @@ def compute_psi(expected: List[float], actual: List[float], bins: int = 10) -> f
                 if edges[i] <= v < edges[i + 1]:
                     counts[i] += 1
                     break
-            else:
-                counts[-1] += 1
         total = sum(counts)
-        return [max(c / total, 1e-6) for c in counts]
+        return [max(c / total, 1e-4) for c in counts]
 
     exp_pct = bucket(expected, bin_edges)
     act_pct = bucket(actual, bin_edges)
@@ -151,8 +162,8 @@ class DriftDetector:
             for i in range(200):
                 drift_bias = 0.0
                 records.append({
-                    "pue": round(1.22 + random.gauss(drift_bias, 0.03), 4),
-                    "server_inlet_temp_c": round(22.5 + random.gauss(drift_bias * 2, 0.4), 3),
+                    "pue": round(REF_PUE_MEAN + random.gauss(drift_bias, REF_PUE_STD), 4),
+                    "server_inlet_temp_c": _ref_inlet_sample(drift_bias * 2),
                     "it_power_mw": round(0.018 + random.gauss(0, 0.001), 6),
                 })
             return records
@@ -180,17 +191,23 @@ class DriftDetector:
         pues = [float(r["pue"]) for r in records if r.get("pue")]
         inlets = [float(r["server_inlet_temp_c"]) for r in records if r.get("server_inlet_temp_c")]
 
-        # Reference distributions (from training data baseline)
-        ref_pue_mean, ref_pue_std = 1.18, 0.04
-        ref_inlet_mean, ref_inlet_std = 22.0, 0.8
+        # Reference distributions: the calibrated twin's nominal operating
+        # point (PUE ~1.05 as in the real Frontier data; rack inlet ~19 C).
+        ref_pue_mean, ref_pue_std = REF_PUE_MEAN, REF_PUE_STD
+        ref_inlet_mean, ref_inlet_std = REF_INLET_MEAN, REF_INLET_STD
 
         import random
         ref_pues = [random.gauss(ref_pue_mean, ref_pue_std) for _ in range(len(pues))]
-        ref_inlets = [random.gauss(ref_inlet_mean, ref_inlet_std) for _ in range(len(inlets))]
+        ref_inlets = [_ref_inlet_sample() for _ in range(len(inlets))]
 
-        pue_mae = compute_mae(ref_pues, pues)
-        inlet_mae = compute_mae(ref_inlets, inlets)
-        psi = compute_psi(ref_pues, pues)
+        # Compare the two samples as DISTRIBUTIONS (sorted / quantile-matched,
+        # i.e. the 1-Wasserstein distance). Pairing two independent random
+        # samples element by element made the "MAE" of a no-drift window
+        # roughly 1.1-1.4x the standard deviation, so it sat right at the
+        # alarm threshold even with zero drift.
+        pue_mae = compute_mae(sorted(ref_pues), sorted(pues))
+        inlet_mae = compute_mae(sorted(ref_inlets), sorted(inlets))
+        psi = compute_psi(ref_pues, pues, bins=5)  # quintiles: less sampling noise on ~200-sample windows
 
         violations = sum(1 for t in inlets if t < 18.0 or t > 27.0)
         sla_rate = violations / max(1, len(inlets))

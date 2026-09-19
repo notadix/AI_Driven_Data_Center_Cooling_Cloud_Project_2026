@@ -29,6 +29,8 @@ from typing import Any, Callable, Dict, List, Optional
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
+from src.digital_twin.physics_dynamics import LiquidCoolingPhysics, ZONE_SCALE
+
 logger = logging.getLogger(__name__)
 
 
@@ -135,6 +137,7 @@ class PhysicsSimulator:
         # facilities with cleaner grids (e.g. DC-WEST-02 at 180 gCO₂/kWh)
         # show lower values in the UI from the very first telemetry frame.
         self.carbon_gco2_kwh = grid_carbon_gco2_kwh
+        self._physics = LiquidCoolingPhysics()
         self._step = 0
 
         # Pending control action from control topic
@@ -221,34 +224,37 @@ class PhysicsSimulator:
                 self.valve_split_pct = float(max(0.0, min(100.0, ctrl["valve_split_pct"])))
             self._pending_control = None
 
-        # Thermal balance: Q = m_dot * Cp * Delta_T
-        flow_lpm = 2000.0 + (self.pump_pct / 100.0) * 5500.0
-        flow_kg_s = (flow_lpm / 60.0) * self.WATER_DENSITY
-        delta_t_water = self.it_power_kw / max(0.1, flow_kg_s * self.SPECIFIC_HEAT_WATER)
-        return_c = self.supply_c + delta_t_water
+        # Thermal + power model: the SAME Frontier-calibrated physics the RL
+        # environment uses (src/digital_twin/physics_dynamics.py), evaluated at
+        # hall scale. Each simulated CRAC reports one representative rack whose
+        # load is 1/ZONE_SCALE of the hall, so heat/power are scaled up to the
+        # hall, run through the shared physics, and per-rack values are scaled
+        # back down for reporting. (Previously this class used a separate
+        # rack-scale model with pump/fan ratings sized for the whole hall,
+        # giving PUE ~2 and observations the trained agent had never seen.)
+        z = ZONE_SCALE
+        phys = self._physics
+        it_zone_kw = self.it_power_kw * z
+        flow_lpm = phys.flow_lpm(self.pump_pct)
+        return_c, inlet_c, outlet_c = phys.thermal_balance(it_zone_kw, self.supply_c, flow_lpm, self.ambient_c)
 
-        # Rack inlet: mixing of supply and ambient
+        # Free-air economizer mixing (identical to DataCenterCoolingEnv._obs).
+        # Outside air can cut chiller load but cannot cool the rack inlet below
+        # the supply setpoint.
         free_cool_frac = max(0.0, min(1.0, (self.valve_split_pct / 100.0) * (1.0 - max(0.0, (self.ambient_c - 18.0) / 20.0))))
-        # Economizer dampers modulate to hold the supply setpoint: outside air
-        # can reduce chiller load but cannot cool the rack inlet below the
-        # supply temperature (without this floor, cold-climate facilities
-        # showed inlet temps of 9-14 C and were flagged as permanent ASHRAE
-        # SLA breaches for over-cooling).
-        server_inlet_c = max(
-            self.supply_c,
-            (1.0 - free_cool_frac) * self.supply_c + free_cool_frac * min(self.ambient_c, 22.0),
-        )
-        server_outlet_c = server_inlet_c + (self.it_power_kw / max(0.1, flow_lpm / 60.0 * 0.25))
+        mixed_inlet_c = max(self.supply_c, (1.0 - free_cool_frac) * inlet_c + free_cool_frac * min(self.ambient_c, 22.0))
+        server_outlet_c = outlet_c + (mixed_inlet_c - inlet_c)
+        server_inlet_c = mixed_inlet_c
 
-        # Power calculations
-        pump_kw = self._cubic_pump_power(self.pump_pct)
-        fan_kw = self._fan_power(self.fan_pct)
-        cop = self._chiller_cop(self.ambient_c)
-        chiller_load_kw = self.it_power_kw * (1.0 - free_cool_frac)
-        chiller_kw = chiller_load_kw / cop
-        cooling_kw = pump_kw + fan_kw + chiller_kw
-        total_kw = self.it_power_kw + cooling_kw
-        pue = total_kw / max(0.01, self.it_power_kw)
+        _, _, chiller_zone_kw, cooling_zone_kw, _ = phys.power_and_pue(
+            it_zone_kw, self.supply_c, self.pump_pct, self.fan_pct, self.ambient_c
+        )
+        cooling_zone_kw = cooling_zone_kw * (1.0 - 0.3 * free_cool_frac)
+        pue = (it_zone_kw + cooling_zone_kw + phys.c.FIXED_OVERHEAD_KW) / max(1.0, it_zone_kw)
+
+        # Per-rack reporting values.
+        cooling_kw = cooling_zone_kw / z
+        chiller_kw = chiller_zone_kw / z
         wue = self._compute_wue(chiller_kw, self.it_power_kw, self.ambient_c)
 
         return TelemetryPayload(
