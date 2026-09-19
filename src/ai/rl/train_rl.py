@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from cooling_sim_env import DataCenterCoolingEnv
 from safe_ppo import SafePPOAgent
 from reward_functions import BaselineControllers
+from safety_shield import ShieldedEnv
 
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
@@ -46,6 +47,7 @@ def rollout(env, act, seed=None):
     obs, _ = env.reset(seed=seed)
     done, reward, cost, viols, n = False, 0.0, 0.0, 0, 0
     cooling_kwh = it_kwh = emissions_kg = 0.0
+    interventions = 0
     pues = []
     while not done:
         obs, r, term, trunc, info = env.step(act(obs))
@@ -53,6 +55,7 @@ def rollout(env, act, seed=None):
         reward += r
         cost += info["safety_cost"]
         viols += int(info["violated"])
+        interventions += int(info.get("shield_active", False))
         n += 1
         pues.append(info["pue"])
         cooling_kwh += info["cooling_kw"] * STEP_HOURS
@@ -62,6 +65,7 @@ def rollout(env, act, seed=None):
         "reward": reward, "cost": cost, "pue": float(np.mean(pues)),
         "violations": viols, "violation_rate": viols / max(1, n),
         "cooling_kwh": cooling_kwh, "it_kwh": it_kwh, "emissions_kg": emissions_kg,
+        "shield_rate": interventions / max(1, n),
     }
 
 
@@ -85,7 +89,7 @@ def set_seed(seed):
 
 def train(episodes=30, steps=144, smoke_test=False, output=None, seed=0,
           constrained=True, episodes_per_update=4, eval_every=10, verbose=True, benchmark=True,
-          save_history=False):
+          save_history=False, shield=True, env_kwargs=None, init_from=None):
     if verbose:
         print("=" * 56)
         print(f"  {'SAFE-PPO' if constrained else 'PPO (unconstrained)'}: Data Center Cooling Digital Twin Training (seed {seed})")
@@ -94,10 +98,15 @@ def train(episodes=30, steps=144, smoke_test=False, output=None, seed=0,
         episodes, steps, eval_every = 8, 30, 2
 
     set_seed(seed)
-    env = DataCenterCoolingEnv(max_steps=steps)
-    eval_env = DataCenterCoolingEnv(max_steps=steps)
+    env_kwargs = dict(env_kwargs or {})
+    env = DataCenterCoolingEnv(max_steps=steps, **env_kwargs)
+    eval_env = DataCenterCoolingEnv(max_steps=steps, **env_kwargs)
+    if shield:
+        env, eval_env = ShieldedEnv(env), ShieldedEnv(eval_env)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     agent = SafePPOAgent(state_dim=10, action_dim=4, device=device, constrained=constrained)
+    if init_from:   # transfer learning: start from another facility's policy
+        agent.ac.load_state_dict(torch.load(init_from, map_location=device, weights_only=False)["ac_state_dict"])
 
     save_path = output or os.path.join(MODELS_DIR, "safe_ppo_agent_v1.pt")
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -163,6 +172,7 @@ def train(episodes=30, steps=144, smoke_test=False, output=None, seed=0,
                     "best_reward": float(m["reward"]),
                     "best_eval_score": float(sc),
                     "constrained": constrained,
+                    "shield": shield,
                     "seed": seed,
                     "hyperparams": {"state_dim": 10, "action_dim": 4},
                 }, save_path)
@@ -183,11 +193,12 @@ def train(episodes=30, steps=144, smoke_test=False, output=None, seed=0,
 
     results = None
     if benchmark:
+        plain = DataCenterCoolingEnv(max_steps=steps, **env_kwargs)
         results = {
             ("Safe_PPO" if constrained else "PPO_Unconstrained"): run_policy(env, agent, ctrl_type="agent", n_eps=5),
-            "GL36_Rule": run_policy(env, None, ctrl_type="guideline36", n_eps=5),
-            "ASHRAE_Rule": run_policy(env, None, ctrl_type="constant", n_eps=5),
-            "PID_Feedback": run_policy(env, None, ctrl_type="pid", n_eps=5),
+            "GL36_Rule": run_policy(plain, None, ctrl_type="guideline36", n_eps=5),
+            "ASHRAE_Rule": run_policy(plain, None, ctrl_type="constant", n_eps=5),
+            "PID_Feedback": run_policy(plain, None, ctrl_type="pid", n_eps=5),
         }
         if verbose:
             print(f"{'Controller':<18} {'CoolingkWh':>11} {'PUE':>8} {'Viol%':>7}")
@@ -209,12 +220,13 @@ def main():
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--unconstrained", action="store_true", help="standard PPO baseline (no Lagrangian)")
     p.add_argument("--episodes_per_update", type=int, default=4)
+    p.add_argument("--no_shield", action="store_true", help="train/evaluate without the model-based safety shield")
     p.add_argument("--no_benchmark", action="store_true", help="skip the built-in 5-episode benchmark (used by run_rl_experiments.py)")
     p.add_argument("--history", action="store_true", help="write <checkpoint>_history.json next to the checkpoint")
     args = p.parse_args()
     train(args.episodes, args.steps, args.smoke_test, args.output, seed=args.seed,
           constrained=not args.unconstrained, episodes_per_update=args.episodes_per_update,
-          benchmark=not args.no_benchmark, save_history=args.history)
+          benchmark=not args.no_benchmark, save_history=args.history, shield=not args.no_shield)
 
 
 if __name__ == "__main__":

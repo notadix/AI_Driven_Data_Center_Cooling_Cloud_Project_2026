@@ -1,5 +1,6 @@
 """
-Train N seeds of Safe-PPO and of the unconstrained-PPO baseline in parallel.
+Train N seeds of Safe-PPO (Lagrangian + safety shield), standard PPO (no
+Lagrangian, no shield) and the Lagrangian-only ablation in parallel.
 
 Checkpoints go to models/rl_runs/ (git-ignored); per-run training histories
 are written next to them. Use scripts/benchmark_rl.py afterwards.
@@ -21,8 +22,10 @@ def run(kind: str, seed: int, episodes: int) -> tuple:
     cmd = [sys.executable, os.path.join(PROJECT_ROOT, "src", "ai", "rl", "train_rl.py"),
            "--episodes", str(episodes), "--seed", str(seed), "--output", out,
            "--no_benchmark", "--history"]
-    if kind == "ppo":
-        cmd.append("--unconstrained")
+    if kind == "ppo":                 # standard PPO: no Lagrangian, no shield
+        cmd += ["--unconstrained", "--no_shield"]
+    elif kind == "lagrangian":        # Lagrangian Safe-PPO without the shield (ablation)
+        cmd.append("--no_shield")
     env = dict(os.environ, PYTHONIOENCODING="utf-8", OMP_NUM_THREADS="1", MKL_NUM_THREADS="1")
     proc = subprocess.run(cmd, cwd=PROJECT_ROOT, env=env, capture_output=True, text=True)
     tail = (proc.stdout.strip().splitlines() or [""])[-3:]
@@ -34,7 +37,7 @@ def main() -> None:
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
     ap.add_argument("--episodes", type=int, default=600)
     ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--kinds", nargs="+", default=["safe_ppo", "ppo"], choices=["safe_ppo", "ppo"])
+    ap.add_argument("--kinds", nargs="+", default=["safe_ppo", "ppo", "lagrangian"], choices=["safe_ppo", "ppo", "lagrangian"])
     args = ap.parse_args()
 
     os.makedirs(RUN_DIR, exist_ok=True)

@@ -3,13 +3,14 @@ Benchmark every trained agent against the rule-based baselines.
 
 Protocol
   * 30 evaluation episodes with FIXED seeds (5000..5029) that were never used
-    for training or for checkpoint selection (selection uses seeds 1000..1004)
+    for training or for checkpoint selection (selection uses seeds 1000..1009)
   * every controller sees identical episodes (same initial state and the same
     ambient / load / carbon noise), so differences are paired
   * metric of interest is cooling ENERGY (kWh per simulated day), the quantity
     the project report's "15-30% reduction vs an ASHRAE Guideline 36 baseline"
     refers to; PUE, SLA violations, emissions and reward are reported too
-  * agents: every seed in models/rl_runs/{safe_ppo,ppo}_seed*.pt; the "selected"
+  * agents: every seed in models/rl_runs/{safe_ppo,ppo,lagrangian}_seed*.pt
+    (safe_ppo = Lagrangian + safety shield, ppo = standard PPO, lagrangian = ablation); the "selected"
     Safe-PPO agent is the seed with the best checkpoint-selection score
     (chosen on seeds 1000..1004, not on the benchmark episodes)
 
@@ -34,11 +35,12 @@ sys.path.insert(0, PROJECT_ROOT)
 
 from cooling_sim_env import DataCenterCoolingEnv  # noqa: E402
 from safe_ppo import SafePPOAgent  # noqa: E402
+from safety_shield import ShieldedEnv  # noqa: E402
 import train_rl  # noqa: E402
 
 RUN_DIR = os.path.join(PROJECT_ROOT, "models", "rl_runs")
 BENCH_SEEDS = list(range(5000, 5030))
-METRICS = ["cooling_kwh", "pue", "violation_rate", "emissions_kg", "reward", "cost", "violations", "it_kwh"]
+METRICS = ["cooling_kwh", "pue", "violation_rate", "emissions_kg", "reward", "cost", "violations", "it_kwh", "shield_rate"]
 
 
 def episodes_for(env, act):
@@ -82,12 +84,13 @@ def main() -> None:
         "GL36_Rule": episodes_for(env, train_rl._controller("guideline36", None)),
     }
 
-    agents = {"safe_ppo": {}, "ppo": {}}
+    agents = {"safe_ppo": {}, "ppo": {}, "lagrangian": {}}
     for kind in agents:
         for path in sorted(glob.glob(os.path.join(RUN_DIR, f"{kind}_seed*.pt"))):
             seed = int(os.path.basename(path).split("seed")[1].split(".")[0])
             agent, ckpt = load_agent(path)
-            eps = episodes_for(env, train_rl._controller("agent", agent))
+            agent_env = ShieldedEnv(DataCenterCoolingEnv()) if ckpt.get("shield", False) else env
+            eps = episodes_for(agent_env, train_rl._controller("agent", agent))
             agents[kind][seed] = {"episodes": eps, "select_score": float(ckpt["best_eval_score"]), "path": path}
 
     if not agents["safe_ppo"]:
@@ -105,7 +108,7 @@ def main() -> None:
         "baselines": {k: summarise(v) for k, v in base.items()},
     }
 
-    for kind, label in (("safe_ppo", "Safe_PPO_all_seeds"), ("ppo", "PPO_Unconstrained_all_seeds")):
+    for kind, label in (("safe_ppo", "Safe_PPO_all_seeds"), ("ppo", "PPO_Unconstrained_all_seeds"), ("lagrangian", "Lagrangian_NoShield_all_seeds")):
         runs = agents[kind]
         if not runs:
             continue
@@ -151,7 +154,7 @@ def main() -> None:
     shutil.copyfile(sel["path"], os.path.join(PROJECT_ROOT, "models", "safe_ppo_agent_v1.pt"))
 
     print(json.dumps({k: result[k] for k in ("baselines",)}, indent=1)[:1800])
-    for label in ("Safe_PPO_all_seeds", "PPO_Unconstrained_all_seeds"):
+    for label in ("Safe_PPO_all_seeds", "PPO_Unconstrained_all_seeds", "Lagrangian_NoShield_all_seeds"):
         if label in result:
             print(label, result[label]["cooling_reduction_vs_gl36_pct"], result[label]["violation_rate"])
     print("selected Safe-PPO seed", sel_seed, "reduction vs GL36", sel_summary["reduction_vs_gl36"], "viol", sel_summary["violation_rate"])
