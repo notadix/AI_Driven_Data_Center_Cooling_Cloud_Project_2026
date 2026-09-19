@@ -272,8 +272,8 @@ export default function Dashboard() {
 
         {/* Explainable AI (SHAP) Waterfall */}
         <SHAPExplanation
-          safetyCost={0.018}
-          costLimit={0.050}
+          facilityId={selectedFacility}
+          cracId={selectedRack?.crac_id || 'CRAC-01'}
         />
 
         {/* Supervisory Control Panel */}
