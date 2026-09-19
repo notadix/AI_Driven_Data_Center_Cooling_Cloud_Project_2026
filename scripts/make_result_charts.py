@@ -8,9 +8,9 @@ Reads empirical evaluation artifacts:
 
 Generates high-resolution figures into presentation/:
 1. rl_benchmark_comparison.png (Reward, PUE, Lagrangian Cost)
-2. sla_compliance.png (Thermal SLA Violation Rates)
+2. sla_compliance.png (Thermal SLA compliance, % of steps)
 3. fno_metrics.png (FNO Surrogate Performance Scorecard)
-4. pue_trajectory.png (Real 200-step episode rollout comparison)
+4. pue_trajectory.png (Real 144-step / 24-hour episode rollout comparison)
 """
 
 import json
@@ -27,6 +27,10 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 PRESENTATION_DIR = os.path.join(PROJECT_ROOT, "presentation")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "models")
+
+# Episode length used by src/ai/rl/train_rl.py when producing results/rl_benchmark.json
+# (train() default steps=144, i.e. one simulated day at 10-minute steps).
+BENCHMARK_EPISODE_STEPS = 144
 
 
 def setup_style():
@@ -107,7 +111,11 @@ def generate_sla_compliance_chart():
         data = json.load(f)
 
     controllers = ["Safe-PPO (AI)", "PID Feedback", "ASHRAE Rule"]
-    violations = [data["Safe_PPO"]["violations"], data["PID_Feedback"]["violations"], data["ASHRAE_Rule"]["violations"]]
+    # rl_benchmark.json stores the mean NUMBER of violating steps per episode
+    # (train_rl.py: viols += int(info["violated"])), not a percentage. Episodes
+    # are BENCHMARK_EPISODE_STEPS long, so convert to % of steps.
+    violation_steps = [data["Safe_PPO"]["violations"], data["PID_Feedback"]["violations"], data["ASHRAE_Rule"]["violations"]]
+    violations = [100.0 * v / BENCHMARK_EPISODE_STEPS for v in violation_steps]
     compliance = [100.0 - v for v in violations]
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
@@ -204,7 +212,7 @@ def generate_pue_trajectory_chart():
     agent.ac.load_state_dict(ckpt["ac_state_dict"])
     agent.ac.eval()
 
-    steps = 150
+    steps = 144  # one simulated day (env step = 24h / max_steps = 10 minutes)
     seed = 42
 
     # Run Safe-PPO Rollout
@@ -273,7 +281,7 @@ def generate_pue_trajectory_chart():
     axes[1].axhline(18.0, color="#1D3557", linestyle="--", linewidth=1.4, label="ASHRAE Min Bound (18°C)")
     axes[1].fill_between(t, 18.0, 27.0, color="#06D6A0", alpha=0.08, label="ASHRAE TC 9.9 Envelope")
     axes[1].set_ylabel("Inlet Temp (°C)")
-    axes[1].set_xlabel("Simulation Step (10s intervals)")
+    axes[1].set_xlabel("Simulation Step (10-minute intervals; 144 steps = 24 h)")
     axes[1].set_title("Server Rack Inlet Temperature & Thermal Envelope Compliance")
     axes[1].legend(loc="upper right", ncol=2)
     axes[1].grid(True, linestyle="--", alpha=0.6)
