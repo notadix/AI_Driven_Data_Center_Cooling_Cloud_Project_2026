@@ -1371,3 +1371,156 @@ class TestPrometheusMetrics:
             assert len(output) > 100
         finally:
             sim.stop()
+
+
+# ---------------------------------------------------------------------------
+# 13. LocalStack Step Functions live integration tests  (Commit 4)
+#     Skipped automatically when LocalStack is not reachable.
+# ---------------------------------------------------------------------------
+
+@localstack_available
+class TestLocalStackSFnIntegration:
+    """Live Step Functions integration tests against LocalStack Community.
+
+    These tests are SKIPPED when LocalStack is not running
+    (reason: 'LocalStack not running - start with: docker compose up -d localstack').
+    They require only LocalStack Community (free tier).
+
+    Evidence of what happens when LocalStack is NOT running is in
+    docs/evidence/step_functions_run.md.
+    """
+
+    TEST_SM_NAME = "CoolingTwinRetrainingTestStateMachine"
+    ROLE_ARN     = "arn:aws:iam::000000000000:role/StepFunctionsRole"
+
+    def _sfn(self):
+        import boto3 as real_boto3
+        return real_boto3.client(
+            "stepfunctions",
+            endpoint_url=LOCALSTACK_URL,
+            region_name="us-east-1",
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+        )
+
+    def _workflow_defn(self):
+        import pathlib, json
+        wf = pathlib.Path("src/aws/orchestration/step_functions_localstack_test_workflow.json")
+        return wf.read_text()
+
+    def test_test_workflow_json_exists(self):
+        """The Pass-only test workflow file must be present on disk."""
+        import pathlib
+        wf = pathlib.Path("src/aws/orchestration/step_functions_localstack_test_workflow.json")
+        assert wf.exists(), f"Test workflow missing: {wf}"
+        data = json.loads(wf.read_text())
+        assert "StartAt" in data
+        assert data["StartAt"] == "DetectModelDrift"
+
+    def test_all_states_are_pass_or_choice(self):
+        """Test workflow must use only Pass/Choice states (no integration ARNs)."""
+        import pathlib, json
+        wf = pathlib.Path("src/aws/orchestration/step_functions_localstack_test_workflow.json")
+        data = json.loads(wf.read_text())
+        for state_name, state_def in data["States"].items():
+            stype = state_def.get("Type", "")
+            assert stype in ("Pass", "Choice"), (
+                f"State '{state_name}' uses Type='{stype}'; "
+                "test workflow must use only Pass or Choice"
+            )
+
+    def test_sfn_create_state_machine(self):
+        """Create the Pass-only test SM on LocalStack Community."""
+        sfn = self._sfn()
+        defn = self._workflow_defn()
+        try:
+            resp = sfn.create_state_machine(
+                name=self.TEST_SM_NAME,
+                definition=defn,
+                roleArn=self.ROLE_ARN,
+                type="STANDARD",
+            )
+            arn = resp["stateMachineArn"]
+        except sfn.exceptions.StateMachineAlreadyExists:
+            sms = sfn.list_state_machines()
+            arn = next(
+                sm["stateMachineArn"]
+                for sm in sms["stateMachines"]
+                if sm["name"] == self.TEST_SM_NAME
+            )
+        assert "CoolingTwinRetrainingTestStateMachine" in arn
+
+    def test_sfn_start_execution_and_succeeds(self):
+        """Start execution and verify it SUCCEEDS (all Pass states)."""
+        import time
+        sfn = self._sfn()
+        defn = self._workflow_defn()
+        # Ensure SM exists
+        try:
+            resp = sfn.create_state_machine(
+                name=self.TEST_SM_NAME,
+                definition=defn,
+                roleArn=self.ROLE_ARN,
+                type="STANDARD",
+            )
+            sm_arn = resp["stateMachineArn"]
+        except sfn.exceptions.StateMachineAlreadyExists:
+            sms = sfn.list_state_machines()
+            sm_arn = next(
+                sm["stateMachineArn"]
+                for sm in sms["stateMachines"]
+                if sm["name"] == self.TEST_SM_NAME
+            )
+        exec_input = json.dumps({
+            "drift": {"psi_score": 0.12, "drift_severity": "MODERATE", "drift_detected": True}
+        })
+        exec_resp = sfn.start_execution(stateMachineArn=sm_arn, input=exec_input)
+        exec_arn = exec_resp["executionArn"]
+        # Poll up to 15 s for terminal status
+        final_status = None
+        for _ in range(15):
+            time.sleep(1)
+            desc = sfn.describe_execution(executionArn=exec_arn)
+            status = desc["status"]
+            if status in ("SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"):
+                final_status = status
+                break
+        assert final_status == "SUCCEEDED", (
+            f"Execution ended with '{final_status}' instead of SUCCEEDED. "
+            "Check LocalStack logs for details."
+        )
+
+    def test_sfn_choice_routes_to_prioritized_retraining(self):
+        """MODERATE drift must route to PrioritizedRetraining in the test workflow."""
+        import time, json
+        sfn = self._sfn()
+        defn = self._workflow_defn()
+        try:
+            resp = sfn.create_state_machine(
+                name=self.TEST_SM_NAME + "ChoiceTest",
+                definition=defn,
+                roleArn=self.ROLE_ARN,
+                type="STANDARD",
+            )
+            sm_arn = resp["stateMachineArn"]
+        except sfn.exceptions.StateMachineAlreadyExists:
+            sms = sfn.list_state_machines()
+            sm_arn = next(
+                sm["stateMachineArn"]
+                for sm in sms["stateMachines"]
+                if sm["name"] == self.TEST_SM_NAME + "ChoiceTest"
+            )
+        exec_resp = sfn.start_execution(
+            stateMachineArn=sm_arn,
+            input=json.dumps({"drift": {"drift_severity": "MODERATE", "drift_detected": True}})
+        )
+        exec_arn = exec_resp["executionArn"]
+        for _ in range(15):
+            time.sleep(1)
+            desc = sfn.describe_execution(executionArn=exec_arn)
+            if desc["status"] in ("SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"):
+                break
+        assert desc["status"] == "SUCCEEDED"
+        output = json.loads(desc.get("output", "{}"))
+        # PrioritizedRetraining sets training.training_job = "cooling-twin-prioritized-test"
+        assert output.get("training", {}).get("training_job") == "cooling-twin-prioritized-test"

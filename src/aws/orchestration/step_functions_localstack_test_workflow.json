@@ -1,0 +1,110 @@
+﻿{
+  "Comment": "Pass-only test workflow for LocalStack Community validation. Each state uses the Pass type so no Lambda, SageMaker, or other integration ARNs are required. This lets us verify that Step Functions itself is wired correctly on LocalStack without Pro-only services. The production workflow is in step_functions_workflow.json.",
+  "StartAt": "DetectModelDrift",
+  "States": {
+    "DetectModelDrift": {
+      "Type": "Pass",
+      "Comment": "Production: calls DriftDetectionLambda. Here: Pass with simulated output.",
+      "Result": {
+        "psi_score": 0.12,
+        "drift_detected": true,
+        "drift_severity": "MODERATE"
+      },
+      "ResultPath": "$.drift",
+      "Next": "EvaluateDriftSeverity"
+    },
+    "EvaluateDriftSeverity": {
+      "Type": "Choice",
+      "Comment": "Routes by drift_severity. In production this is a real Choice state; Pass states above inject $.drift so the branch condition is testable.",
+      "Choices": [
+        {
+          "Variable": "$.drift.drift_severity",
+          "StringEquals": "CRITICAL",
+          "Next": "EmergencyRetraining"
+        },
+        {
+          "Variable": "$.drift.drift_severity",
+          "StringEquals": "MODERATE",
+          "Next": "PrioritizedRetraining"
+        },
+        {
+          "Variable": "$.drift.drift_severity",
+          "StringEquals": "LOW",
+          "Next": "StandardRetraining"
+        }
+      ],
+      "Default": "StandardRetraining"
+    },
+    "EmergencyRetraining": {
+      "Type": "Pass",
+      "Comment": "Production: SageMaker TrainingJob with spot instance. Here: Pass.",
+      "Result": {"training_job": "cooling-twin-emergency-test", "status": "Completed"},
+      "ResultPath": "$.training",
+      "Next": "RunModelValidation"
+    },
+    "PrioritizedRetraining": {
+      "Type": "Pass",
+      "Comment": "Production: SageMaker TrainingJob (prioritized queue). Here: Pass.",
+      "Result": {"training_job": "cooling-twin-prioritized-test", "status": "Completed"},
+      "ResultPath": "$.training",
+      "Next": "RunModelValidation"
+    },
+    "StandardRetraining": {
+      "Type": "Pass",
+      "Comment": "Production: SageMaker TrainingJob (standard queue). Here: Pass.",
+      "Result": {"training_job": "cooling-twin-standard-test", "status": "Completed"},
+      "ResultPath": "$.training",
+      "Next": "RunModelValidation"
+    },
+    "RunModelValidation": {
+      "Type": "Pass",
+      "Comment": "Production: calls ValidationGateLambda. Here: Pass with simulated metrics.",
+      "Result": {
+        "mae": 0.031,
+        "rmse": 0.044,
+        "r2": 0.97,
+        "passed": true
+      },
+      "ResultPath": "$.validation",
+      "Next": "CheckValidationGate"
+    },
+    "CheckValidationGate": {
+      "Type": "Pass",
+      "Comment": "Production: passes validation.passed into the Choice gate below. Here: Pass-through.",
+      "Next": "ValidationGateDecision"
+    },
+    "ValidationGateDecision": {
+      "Type": "Choice",
+      "Comment": "Gate: only deploy if validation passed.",
+      "Choices": [
+        {
+          "Variable": "$.validation.passed",
+          "BooleanEquals": true,
+          "Next": "DeployModel"
+        }
+      ],
+      "Default": "AlertValidationFailure"
+    },
+    "DeployModel": {
+      "Type": "Pass",
+      "Comment": "Production: updates SageMaker endpoint. Here: Pass.",
+      "Result": {"endpoint": "cooling-twin-endpoint", "status": "InService"},
+      "ResultPath": "$.deployment",
+      "Next": "NotifySuccess"
+    },
+    "NotifySuccess": {
+      "Type": "Pass",
+      "Comment": "Production: publishes to SNS alert topic. Here: Pass.",
+      "Result": {"message": "Model retraining and deployment completed successfully."},
+      "ResultPath": "$.notification",
+      "End": true
+    },
+    "AlertValidationFailure": {
+      "Type": "Pass",
+      "Comment": "Production: publishes failure alert to SNS. Here: Pass.",
+      "Result": {"message": "Model validation failed. Manual review required."},
+      "ResultPath": "$.notification",
+      "End": true
+    }
+  }
+}
