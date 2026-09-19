@@ -113,11 +113,13 @@ class AutoControlLoop:
         while self._running:
             await asyncio.sleep(self.interval_s)
             for t in sim.topology:
+                facility_id = t["facility_id"]
                 crac_id = t["crac_id"]
-                if get_crac_mode(crac_id) != "auto":
+                # Per-facility-CRAC isolation: check mode for this exact pair
+                if get_crac_mode(crac_id, facility_id=facility_id) != "auto":
                     continue
-                state = sim.get_simulator_state(t["facility_id"], crac_id)
-                topic = f"datacenter/cooling/telemetry/{t['facility_id']}/{crac_id}"
+                state = sim.get_simulator_state(facility_id, crac_id)
+                topic = f"datacenter/cooling/telemetry/{facility_id}/{crac_id}"
                 payload = local_bus.get_latest(topic)
                 if state is None or not payload:
                     continue
@@ -128,9 +130,13 @@ class AutoControlLoop:
                     action = self._select_action(obs)
                     control = _action_to_control(action)
                     sim.apply_control_action(crac_id, control)
-                    record_action(crac_id, control, source="rl_agent" if self._agent else "baseline_pid")
+                    record_action(
+                        crac_id, control,
+                        source="rl_agent" if self._agent else "baseline_pid",
+                        facility_id=facility_id,
+                    )
                 except Exception as e:
-                    logger.error("Auto-control step failed for %s: %s", crac_id, e)
+                    logger.error("Auto-control step failed for %s/%s: %s", facility_id, crac_id, e)
 
     def start(self) -> None:
         if self._running:

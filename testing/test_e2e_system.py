@@ -191,7 +191,7 @@ class TestE2ESafePPOActuationLoop:
     def test_safe_ppo_inference_and_dispatch(self, client):
         # Ensure CRAC-01 is in auto mode — earlier tests in test_backend_iot.py
         # may leave it in manual mode due to module-level _crac_modes shared state.
-        client.post("/api/v1/control/mode/CRAC-01", json={"mode": "auto"})
+        client.post("/api/v1/control/mode/DC-EAST-01/CRAC-01", json={"mode": "auto"})
 
         agent = SafePPOAgent(state_dim=10, action_dim=4)
         sample_obs = np.array([18000.0, 22.0, 320.0, 18.5, 29.5, 4800.0, 22.5, 36.0, 2500.0, 1.13], dtype=np.float32)
@@ -218,7 +218,7 @@ class TestE2ESafePPOActuationLoop:
         }
 
         # Submit via REST
-        resp = client.post("/api/v1/control/action/CRAC-01", json=control_payload)
+        resp = client.post("/api/v1/control/action/DC-EAST-01/CRAC-01", json=control_payload)
         assert resp.status_code == 200, (
             f"Expected 200 but got {resp.status_code}: {resp.json()}"
         )
@@ -236,7 +236,7 @@ class TestE2EControlOverrideGate:
 
     def test_manual_override_lockout_and_recovery(self, client):
         # 1. Switch CRAC-02 to manual mode
-        resp = client.post("/api/v1/control/mode/CRAC-02", json={"mode": "manual"})
+        resp = client.post("/api/v1/control/mode/DC-EAST-01/CRAC-02", json={"mode": "manual"})
         assert resp.status_code == 200
         assert resp.json()["data"]["current_mode"] == "manual"
 
@@ -246,7 +246,7 @@ class TestE2EControlOverrideGate:
             "pump_speed_pct": 80.0,
             "source": "rl_agent",
         }
-        rej_resp = client.post("/api/v1/control/action/CRAC-02", json=rl_payload)
+        rej_resp = client.post("/api/v1/control/action/DC-EAST-01/CRAC-02", json=rl_payload)
         assert rej_resp.status_code == 409
         # Backend message: "CRAC 'CRAC-02' is in manual mode. RL actions are blocked."
         detail = rej_resp.json()["detail"]
@@ -261,7 +261,7 @@ class TestE2EControlOverrideGate:
             "fan_speed_pct": 75.0,
             "valve_split_pct": 20.0,
         }
-        ov_resp = client.post("/api/v1/control/setpoint/CRAC-02", json=manual_override)
+        ov_resp = client.post("/api/v1/control/setpoint/DC-EAST-01/CRAC-02", json=manual_override)
         assert ov_resp.status_code == 200
         ov_data = ov_resp.json()["data"]
         # Backend returns either "applied_setpoint" or "setpoint" key
@@ -269,7 +269,7 @@ class TestE2EControlOverrideGate:
         assert setpoint_data.get("supply_temp_c") == 19.0
 
         # 4. Revert back to auto mode
-        auto_resp = client.post("/api/v1/control/mode/CRAC-02", json={"mode": "auto"})
+        auto_resp = client.post("/api/v1/control/mode/DC-EAST-01/CRAC-02", json={"mode": "auto"})
         assert auto_resp.status_code == 200
         assert auto_resp.json()["data"]["current_mode"] == "auto"
 

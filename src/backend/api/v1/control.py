@@ -2,15 +2,25 @@
 Control REST API — /api/v1/control
 
 Endpoints:
-  POST /action/{crac_id}          — submit RL or manual control action to CRAC
-  GET  /status/{facility_id}      — current control status for all CRACs in facility
-  POST /setpoint/{crac_id}        — direct setpoint override (manual mode)
-  POST /mode/{crac_id}            — switch CRAC between 'auto' (RL) and 'manual' modes
+  POST /action/{facility_id}/{crac_id}   — submit RL or manual control action
+  GET  /status/{facility_id}             — current control status for all CRACs in facility
+  POST /setpoint/{facility_id}/{crac_id} — direct setpoint override (manual mode)
+  POST /mode/{facility_id}/{crac_id}     — switch CRAC between 'auto' (RL) and 'manual' modes
+
+State isolation:
+  All per-CRAC state (_crac_modes, _last_actions) is keyed by the tuple
+  (facility_id, crac_id) so that CRAC-01 in DC-EAST-01 and CRAC-01 in DC-WEST-01
+  are completely independent, matching the composite primary keys in postgres_schema.sql.
+
+Backward compatibility:
+  get_crac_mode(crac_id, facility_id="DC-EAST-01") and
+  record_action(crac_id, ..., facility_id="DC-EAST-01") keep the old positional
+  signature working so existing callers (auto_control.py, unit tests) need no changes.
 """
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 from fastapi import APIRouter, Body, HTTPException, Path
 from fastapi.responses import JSONResponse
@@ -22,10 +32,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# In-memory control mode store (persists within process lifetime)
+# In-memory control state — keyed by (facility_id, crac_id)
 # ---------------------------------------------------------------------------
-_crac_modes: Dict[str, str] = {}   # crac_id -> 'auto' | 'manual'
-_last_actions: Dict[str, dict] = {}  # crac_id -> last submitted action
+_crac_modes: Dict[Tuple[str, str], str] = {}    # (facility_id, crac_id) -> 'auto' | 'manual'
+_last_actions: Dict[Tuple[str, str], dict] = {}  # (facility_id, crac_id) -> last action
 
 
 # ---------------------------------------------------------------------------
@@ -92,9 +102,26 @@ def _ts() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def get_crac_mode(crac_id: str) -> str:
-    """Public accessor for the in-memory mode store, used by the auto-control loop."""
-    return _crac_modes.get(crac_id, "auto")
+def _validate_facility_crac(facility_id: str, crac_id: str) -> None:
+    """Raise HTTP 404 if (facility_id, crac_id) pair is not in the simulator topology."""
+    sim = get_simulator()
+    if not any(
+        t["facility_id"] == facility_id and t["crac_id"] == crac_id
+        for t in sim.topology
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=f"CRAC '{crac_id}' not found in facility '{facility_id}'.",
+        )
+
+
+def get_crac_mode(crac_id: str, facility_id: str = "DC-EAST-01") -> str:
+    """Public accessor for the in-memory mode store, used by the auto-control loop.
+
+    Backward compatible: facility_id defaults to 'DC-EAST-01' so existing
+    callers that only pass crac_id continue to work without modification.
+    """
+    return _crac_modes.get((facility_id, crac_id), "auto")
 
 
 def record_action(
@@ -104,12 +131,17 @@ def record_action(
     safety_status: str = "NORMAL",
     v_reward: float = 0.0,
     v_cost: float = 0.0,
+    facility_id: str = "DC-EAST-01",
 ) -> None:
-    """Records an action into the same last-action store submit_action() uses, so
-    actions applied by the auto-control loop show up in GET /status/{facility_id}
-    exactly like manually-submitted ones do."""
-    _last_actions[crac_id] = {
+    """Records an action into the last-action store so auto-loop actions show
+    up in GET /status/{facility_id} exactly like manually-submitted ones.
+
+    Backward compatible: facility_id defaults to 'DC-EAST-01' so existing
+    callers that only pass (crac_id, control, source) continue to work.
+    """
+    _last_actions[(facility_id, crac_id)] = {
         "crac_id": crac_id,
+        "facility_id": facility_id,
         "control": control,
         "source": source,
         "safety_status": safety_status,
@@ -120,25 +152,24 @@ def record_action(
 
 
 # ---------------------------------------------------------------------------
-# POST /action/{crac_id}
+# POST /action/{facility_id}/{crac_id}
 # ---------------------------------------------------------------------------
 
-@router.post("/action/{crac_id}", summary="Submit a control action to a CRAC unit")
+@router.post("/action/{facility_id}/{crac_id}", summary="Submit a control action to a CRAC unit")
 async def submit_action(
+    facility_id: str = Path(..., description="Facility ID, e.g. 'DC-EAST-01'"),
     crac_id: str = Path(..., description="CRAC unit ID, e.g. 'CRAC-01'"),
     action: ControlAction = Body(...),
 ) -> JSONResponse:
-    sim = get_simulator()
-
-    if not any(t["crac_id"] == crac_id for t in sim.topology):
-        raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
+    _validate_facility_crac(facility_id, crac_id)
 
     # Enforce manual-mode gate: RL actions blocked if in manual mode
-    mode = _crac_modes.get(crac_id, "auto")
+    mode = _crac_modes.get((facility_id, crac_id), "auto")
     if mode == "manual" and action.source == "rl_agent":
         raise HTTPException(
             status_code=409,
-            detail=f"CRAC '{crac_id}' is in manual mode. RL actions are blocked. Switch to 'auto' first."
+            detail=f"CRAC '{crac_id}' in facility '{facility_id}' is in manual mode. "
+                   "RL actions are blocked. Switch to 'auto' first.",
         )
 
     # Build control dict for simulator
@@ -150,24 +181,30 @@ async def submit_action(
     if action.valve_split_pct is not None:
         control["valve_split_pct"] = action.valve_split_pct
 
+    sim = get_simulator()
     sim.apply_control_action(crac_id, control)
 
-    record_action(crac_id, control, action.source, action.safety_status, action.v_reward, action.v_cost)
+    record_action(
+        crac_id, control, action.source,
+        action.safety_status, action.v_reward, action.v_cost,
+        facility_id=facility_id,
+    )
 
     logger.info(
-        "Control action applied: crac=%s source=%s delta_supply=%.2f pump=%.1f fan=%.1f valve=%.1f",
-        crac_id, action.source, action.delta_supply_c,
+        "Control action applied: facility=%s crac=%s source=%s delta_supply=%.2f pump=%.1f fan=%.1f valve=%.1f",
+        facility_id, crac_id, action.source, action.delta_supply_c,
         action.pump_speed_pct or -1,
         action.fan_speed_pct or -1,
         action.valve_split_pct or -1,
     )
 
     return _ok({
+        "facility_id": facility_id,
         "crac_id": crac_id,
         "applied": control,
         "mode": mode,
         "applied_at": _ts(),
-        "message": f"Control action applied to '{crac_id}' (source: {action.source})",
+        "message": f"Control action applied to '{crac_id}' in '{facility_id}' (source: {action.source})",
     })
 
 
@@ -184,11 +221,11 @@ async def get_control_status(facility_id: str) -> JSONResponse:
             continue
         crac_id = t["crac_id"]
         state = sim.get_simulator_state(facility_id, crac_id)
-        last_action = _last_actions.get(crac_id, {})
+        last_action = _last_actions.get((facility_id, crac_id), {})
         statuses.append({
             "crac_id": crac_id,
             "facility_id": facility_id,
-            "mode": _crac_modes.get(crac_id, "auto"),
+            "mode": _crac_modes.get((facility_id, crac_id), "auto"),
             "current_supply_c": round(state.supply_c, 3) if state else None,
             "current_pump_pct": round(state.pump_pct, 1) if state else None,
             "current_fan_pct": round(state.fan_pct, 1) if state else None,
@@ -203,26 +240,27 @@ async def get_control_status(facility_id: str) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
-# POST /setpoint/{crac_id}  — manual setpoint override
+# POST /setpoint/{facility_id}/{crac_id}  — manual setpoint override
 # ---------------------------------------------------------------------------
 
-@router.post("/setpoint/{crac_id}", summary="Direct setpoint override (manual mode only)")
+@router.post("/setpoint/{facility_id}/{crac_id}", summary="Direct setpoint override (manual mode only)")
 async def set_setpoint(
+    facility_id: str = Path(...),
     crac_id: str = Path(...),
     setpoint: SetpointOverride = Body(...),
 ) -> JSONResponse:
-    mode = _crac_modes.get(crac_id, "auto")
+    _validate_facility_crac(facility_id, crac_id)
+
+    mode = _crac_modes.get((facility_id, crac_id), "auto")
     if mode != "manual":
         raise HTTPException(
             status_code=409,
-            detail=f"CRAC '{crac_id}' is in 'auto' mode. Switch to 'manual' before using setpoint override."
+            detail=f"CRAC '{crac_id}' in '{facility_id}' is in 'auto' mode. "
+                   "Switch to 'manual' before using setpoint override.",
         )
 
     sim = get_simulator()
-    topo_entry = next((t for t in sim.topology if t["crac_id"] == crac_id), None)
-    if topo_entry is None:
-        raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
-    state = sim.get_simulator_state(topo_entry["facility_id"], crac_id)
+    state = sim.get_simulator_state(facility_id, crac_id)
     if state is None:
         raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
 
@@ -235,9 +273,10 @@ async def set_setpoint(
         "valve_split_pct": setpoint.valve_split_pct,
     }
     sim.apply_control_action(crac_id, control)
-    record_action(crac_id, control, source="manual")
+    record_action(crac_id, control, source="manual", facility_id=facility_id)
 
     return _ok({
+        "facility_id": facility_id,
         "crac_id": crac_id,
         "setpoint": setpoint.model_dump(),
         "applied_at": _ts(),
@@ -246,18 +285,26 @@ async def set_setpoint(
 
 
 # ---------------------------------------------------------------------------
-# POST /mode/{crac_id}  — switch auto/manual
+# POST /mode/{facility_id}/{crac_id}  — switch auto/manual
 # ---------------------------------------------------------------------------
 
-@router.post("/mode/{crac_id}", summary="Switch CRAC between auto (RL) and manual control modes")
+@router.post("/mode/{facility_id}/{crac_id}", summary="Switch CRAC between auto (RL) and manual control modes")
 async def set_mode(
+    facility_id: str = Path(...),
     crac_id: str = Path(...),
     body: ModeSwitch = Body(...),
 ) -> JSONResponse:
-    previous = _crac_modes.get(crac_id, "auto")
-    _crac_modes[crac_id] = body.mode
-    logger.info("CRAC %s mode changed: %s -> %s", crac_id, previous, body.mode)
+    _validate_facility_crac(facility_id, crac_id)
+
+    key = (facility_id, crac_id)
+    previous = _crac_modes.get(key, "auto")
+    _crac_modes[key] = body.mode
+    logger.info(
+        "CRAC %s/%s mode changed: %s -> %s",
+        facility_id, crac_id, previous, body.mode,
+    )
     return _ok({
+        "facility_id": facility_id,
         "crac_id": crac_id,
         "previous_mode": previous,
         "current_mode": body.mode,

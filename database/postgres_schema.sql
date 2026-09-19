@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS facilities (
 -- 2. CRAC Units
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS crac_units (
-    crac_id             VARCHAR(64)  PRIMARY KEY,
     facility_id         VARCHAR(64)  NOT NULL REFERENCES facilities(facility_id) ON DELETE CASCADE,
+    crac_id             VARCHAR(64)  NOT NULL,
     cooling_zone        VARCHAR(32)  NOT NULL DEFAULT 'north',
     cooling_capacity_kw NUMERIC(8,2) NOT NULL DEFAULT 120.0,
     rated_flow_lpm      NUMERIC(8,2) NOT NULL DEFAULT 7500.0,
@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS crac_units (
     twinmaker_entity_id VARCHAR(128),
     is_active           BOOLEAN      NOT NULL DEFAULT TRUE,
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (facility_id, crac_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_crac_facility ON crac_units(facility_id);
@@ -45,19 +46,21 @@ CREATE INDEX IF NOT EXISTS idx_crac_facility ON crac_units(facility_id);
 -- 3. Server Racks
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS racks (
-    rack_id               VARCHAR(64)  PRIMARY KEY,
-    crac_id               VARCHAR(64)  NOT NULL REFERENCES crac_units(crac_id) ON DELETE CASCADE,
     facility_id           VARCHAR(64)  NOT NULL REFERENCES facilities(facility_id) ON DELETE CASCADE,
+    rack_id               VARCHAR(64)  NOT NULL,
+    crac_id               VARCHAR(64)  NOT NULL,
     grid_row              SMALLINT     NOT NULL CHECK (grid_row BETWEEN 0 AND 7),
     grid_col              SMALLINT     NOT NULL CHECK (grid_col BETWEEN 0 AND 7),
     max_thermal_rating_kw NUMERIC(6,2) NOT NULL DEFAULT 20.0,
     world_pos_x           NUMERIC(7,3),
     world_pos_y           NUMERIC(7,3),
     world_pos_z           NUMERIC(7,3),
-    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (facility_id, rack_id),
+    FOREIGN KEY (facility_id, crac_id) REFERENCES crac_units(facility_id, crac_id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_rack_crac     ON racks(crac_id);
+CREATE INDEX IF NOT EXISTS idx_rack_crac     ON racks(facility_id, crac_id);
 CREATE INDEX IF NOT EXISTS idx_rack_facility ON racks(facility_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rack_grid ON racks(facility_id, grid_row, grid_col);
 
@@ -123,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_steps_violated ON rl_steps(episode_id, ashrae_vio
 CREATE TABLE IF NOT EXISTS fno_predictions (
     prediction_id   UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
     facility_id     VARCHAR(64)   NOT NULL REFERENCES facilities(facility_id) ON DELETE CASCADE,
-    crac_id         VARCHAR(64)   NOT NULL REFERENCES crac_units(crac_id) ON DELETE CASCADE,
+    crac_id         VARCHAR(64)   NOT NULL,
     predicted_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     model_version   VARCHAR(64)   NOT NULL DEFAULT 'v1.0',
     -- Input conditions
@@ -140,7 +143,8 @@ CREATE TABLE IF NOT EXISTS fno_predictions (
     -- Ground truth (filled after actual measurement)
     actual_max_inlet NUMERIC(6,3),
     mae_c            NUMERIC(6,4),
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    FOREIGN KEY (facility_id, crac_id) REFERENCES crac_units(facility_id, crac_id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_fno_facility ON fno_predictions(facility_id, predicted_at DESC);
@@ -210,8 +214,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_endpoint ON api_audit_log(endpoint, created
 CREATE TABLE IF NOT EXISTS sla_violations (
     violation_id     UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
     facility_id      VARCHAR(64)  NOT NULL REFERENCES facilities(facility_id) ON DELETE CASCADE,
-    crac_id          VARCHAR(64)  NOT NULL REFERENCES crac_units(crac_id) ON DELETE CASCADE,
-    rack_id          VARCHAR(64)  NOT NULL REFERENCES racks(rack_id) ON DELETE CASCADE,
+    crac_id          VARCHAR(64)  NOT NULL,
+    rack_id          VARCHAR(64)  NOT NULL,
     violation_type   VARCHAR(32)  NOT NULL CHECK (violation_type IN ('BELOW_MIN', 'ABOVE_MAX', 'CRITICAL')),
     server_inlet_c   NUMERIC(6,3) NOT NULL,
     ashrae_limit_c   NUMERIC(5,1) NOT NULL,
@@ -219,7 +223,9 @@ CREATE TABLE IF NOT EXISTS sla_violations (
     duration_s       INTEGER,
     resolved_at      TIMESTAMPTZ,
     auto_corrected   BOOLEAN      NOT NULL DEFAULT FALSE,
-    correction_action JSONB
+    correction_action JSONB,
+    FOREIGN KEY (facility_id, crac_id) REFERENCES crac_units(facility_id, crac_id) ON DELETE CASCADE,
+    FOREIGN KEY (facility_id, rack_id) REFERENCES racks(facility_id, rack_id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_sla_facility ON sla_violations(facility_id, detected_at DESC);
@@ -245,28 +251,64 @@ CREATE TRIGGER crac_units_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- =============================================================================
--- Seed data: default facility and CRAC units
+-- Seed data: 3 facilities × 4 CRACs × representative racks
+-- Composite PKs mean the same crac_id value ('CRAC-01' etc.) is valid for
+-- every facility — no collisions across DC-EAST-01, DC-WEST-01, DC-EU-01.
 -- =============================================================================
 INSERT INTO facilities (facility_id, facility_name, aws_region, nominal_capacity_mw, target_pue)
-VALUES ('DC-EAST-01', 'East Coast Primary Data Center', 'us-east-1', 5.0, 1.15)
+VALUES
+    ('DC-EAST-01', 'East Coast Primary Data Center',  'us-east-1', 5.0, 1.15),
+    ('DC-WEST-01', 'West Coast Secondary Data Center', 'us-west-2', 4.0, 1.18),
+    ('DC-EU-01',   'EU Frankfurt Data Center',         'eu-central-1', 3.0, 1.20)
 ON CONFLICT (facility_id) DO NOTHING;
 
-INSERT INTO crac_units (crac_id, facility_id, cooling_zone, cooling_capacity_kw, rated_flow_lpm)
+-- ---------------------------------------------------------------------------
+-- CRAC units: 4 per facility
+-- ---------------------------------------------------------------------------
+INSERT INTO crac_units (facility_id, crac_id, cooling_zone, cooling_capacity_kw, rated_flow_lpm)
 VALUES
-    ('CRAC-01', 'DC-EAST-01', 'north', 120.0, 7500.0),
-    ('CRAC-02', 'DC-EAST-01', 'south', 120.0, 7500.0),
-    ('CRAC-03', 'DC-EAST-01', 'east',  100.0, 6500.0),
-    ('CRAC-04', 'DC-EAST-01', 'west',  100.0, 6500.0)
-ON CONFLICT (crac_id) DO NOTHING;
+    -- DC-EAST-01
+    ('DC-EAST-01', 'CRAC-01', 'north', 120.0, 7500.0),
+    ('DC-EAST-01', 'CRAC-02', 'south', 120.0, 7500.0),
+    ('DC-EAST-01', 'CRAC-03', 'east',  100.0, 6500.0),
+    ('DC-EAST-01', 'CRAC-04', 'west',  100.0, 6500.0),
+    -- DC-WEST-01
+    ('DC-WEST-01', 'CRAC-01', 'north', 110.0, 7000.0),
+    ('DC-WEST-01', 'CRAC-02', 'south', 110.0, 7000.0),
+    ('DC-WEST-01', 'CRAC-03', 'east',   90.0, 6000.0),
+    ('DC-WEST-01', 'CRAC-04', 'west',   90.0, 6000.0),
+    -- DC-EU-01
+    ('DC-EU-01', 'CRAC-01', 'north',  95.0, 6200.0),
+    ('DC-EU-01', 'CRAC-02', 'south',  95.0, 6200.0),
+    ('DC-EU-01', 'CRAC-03', 'east',   80.0, 5500.0),
+    ('DC-EU-01', 'CRAC-04', 'west',   80.0, 5500.0)
+ON CONFLICT (facility_id, crac_id) DO NOTHING;
 
-INSERT INTO racks (rack_id, crac_id, facility_id, grid_row, grid_col, max_thermal_rating_kw)
+-- ---------------------------------------------------------------------------
+-- Racks: one representative rack per CRAC zone
+-- ---------------------------------------------------------------------------
+INSERT INTO racks (facility_id, rack_id, crac_id, grid_row, grid_col, max_thermal_rating_kw)
 VALUES
-    ('RACK-A01', 'CRAC-01', 'DC-EAST-01', 0, 0, 20.0),
-    ('RACK-A02', 'CRAC-01', 'DC-EAST-01', 0, 1, 20.0),
-    ('RACK-B01', 'CRAC-01', 'DC-EAST-01', 1, 0, 20.0),
-    ('RACK-B02', 'CRAC-01', 'DC-EAST-01', 1, 1, 20.0),
-    ('RACK-E01', 'CRAC-02', 'DC-EAST-01', 4, 0, 20.0),
-    ('RACK-E02', 'CRAC-02', 'DC-EAST-01', 4, 1, 20.0),
-    ('RACK-A03', 'CRAC-03', 'DC-EAST-01', 0, 2, 20.0),
-    ('RACK-A04', 'CRAC-03', 'DC-EAST-01', 0, 3, 20.0)
-ON CONFLICT (rack_id) DO NOTHING;
+    -- DC-EAST-01
+    ('DC-EAST-01', 'RACK-A01', 'CRAC-01', 0, 0, 20.0),
+    ('DC-EAST-01', 'RACK-A02', 'CRAC-01', 0, 1, 20.0),
+    ('DC-EAST-01', 'RACK-B01', 'CRAC-01', 1, 0, 20.0),
+    ('DC-EAST-01', 'RACK-E01', 'CRAC-02', 4, 0, 20.0),
+    ('DC-EAST-01', 'RACK-E02', 'CRAC-02', 4, 1, 20.0),
+    ('DC-EAST-01', 'RACK-A05', 'CRAC-03', 0, 4, 20.0),
+    ('DC-EAST-01', 'RACK-A06', 'CRAC-03', 0, 5, 20.0),
+    ('DC-EAST-01', 'RACK-E05', 'CRAC-04', 4, 4, 20.0),
+    -- DC-WEST-01
+    ('DC-WEST-01', 'RACK-A01', 'CRAC-01', 0, 0, 18.0),
+    ('DC-WEST-01', 'RACK-A02', 'CRAC-01', 0, 1, 18.0),
+    ('DC-WEST-01', 'RACK-E01', 'CRAC-02', 4, 0, 18.0),
+    ('DC-WEST-01', 'RACK-E02', 'CRAC-02', 4, 1, 18.0),
+    ('DC-WEST-01', 'RACK-A05', 'CRAC-03', 0, 4, 18.0),
+    ('DC-WEST-01', 'RACK-E05', 'CRAC-04', 4, 4, 18.0),
+    -- DC-EU-01
+    ('DC-EU-01', 'RACK-A01', 'CRAC-01', 0, 0, 15.0),
+    ('DC-EU-01', 'RACK-A02', 'CRAC-01', 0, 1, 15.0),
+    ('DC-EU-01', 'RACK-E01', 'CRAC-02', 4, 0, 15.0),
+    ('DC-EU-01', 'RACK-A05', 'CRAC-03', 0, 4, 15.0),
+    ('DC-EU-01', 'RACK-E05', 'CRAC-04', 4, 4, 15.0)
+ON CONFLICT (facility_id, rack_id) DO NOTHING;

@@ -268,7 +268,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   // Submit operator control action
   const submitControlAction = async (cracId, actionPayload) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/control/action/${cracId}`, {
+      const res = await fetch(`http://localhost:8000/api/v1/control/action/${facilityId}/${cracId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(actionPayload),
@@ -284,7 +284,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   // Toggle control mode (auto vs manual)
   const setControlMode = async (cracId, mode) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/control/mode/${cracId}`, {
+      const res = await fetch(`http://localhost:8000/api/v1/control/mode/${facilityId}/${cracId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),

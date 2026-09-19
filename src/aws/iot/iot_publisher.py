@@ -357,26 +357,35 @@ class IoTSimulator:
         aws_endpoint: Optional[str] = None,
         aws_region: str = "us-east-1",
     ):
-        # Default topology: 1 facility, 4 CRACs, 1 representative rack each.
-        # Rack choices match the quadrant convention used everywhere else
-        # (scene_schema.json rack_grid, useTelemetryWebSocket.js's fallback
-        # grid, postgres_schema.sql's seed data): rows A-D/cols 1-4 -> CRAC-01,
-        # rows A-D/cols 5-8 -> CRAC-03, rows E-H/cols 1-4 -> CRAC-02,
-        # rows E-H/cols 5-8 -> CRAC-04. Previously only 2 CRACs were
-        # simulated here even though the DB seed data, the scene, and the
-        # OperatorControlPanel UI all assume 4 -- selecting CRAC-03/04
-        # anywhere in the app referred to a CRAC that simply didn't exist.
+        # Default topology: 3 facilities × 4 CRACs, matching postgres_schema.sql seed data.
+        # Each facility has a distinct ambient_c offset to simulate regional climate:
+        #   DC-EAST-01 (US East / mid-Atlantic)  — 22 °C baseline
+        #   DC-WEST-01 (US West / California)    — 20 °C baseline (cooler coastal air)
+        #   DC-EU-01   (EU Frankfurt)             — 18 °C baseline (continental, cooler)
+        # Rack names match the seed racks in postgres_schema.sql.
         self.topology = topology or [
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01"},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01"},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05"},
-            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05"},
+            # DC-EAST-01
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 22.0},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 22.0},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 22.0},
+            {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 22.0},
+            # DC-WEST-01
+            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 20.0},
+            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 20.0},
+            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 20.0},
+            {"facility_id": "DC-WEST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 20.0},
+            # DC-EU-01
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01", "ambient_c": 18.0},
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01", "ambient_c": 18.0},
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-03", "rack_id": "RACK-A05", "ambient_c": 18.0},
+            {"facility_id": "DC-EU-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05", "ambient_c": 18.0},
         ]
         self.publish_interval_s = publish_interval_s
         self._running = False
         self._thread: Optional[threading.Thread] = None
 
-        # Initialise physics simulators
+        # Initialise physics simulators; one per (facility_id, crac_id) pair.
+        # Regional ambient temperature from topology entry (or default 22 °C).
         self._simulators: Dict[str, PhysicsSimulator] = {}
         for t in self.topology:
             key = f"{t['facility_id']}:{t['crac_id']}"
@@ -384,6 +393,7 @@ class IoTSimulator:
                 facility_id=t["facility_id"],
                 crac_id=t["crac_id"],
                 rack_id=t["rack_id"],
+                ambient_c=float(t.get("ambient_c", 22.0)),
             )
 
         # Publisher: AWS Cloud or Local
@@ -412,11 +422,34 @@ class IoTSimulator:
         except Exception as e:
             logger.debug("Timestream write error: %s", e)
 
-    def apply_control_action(self, crac_id: str, control: Dict[str, float]) -> None:
+    def apply_control_action(
+        self,
+        crac_id: str,
+        control: Dict[str, float],
+        facility_id: Optional[str] = None,
+    ) -> None:
+        """Apply a control action to the simulator for the given CRAC.
+
+        Args:
+            crac_id:     CRAC unit ID (e.g. 'CRAC-01').
+            control:     Dict of actuator setpoints.
+            facility_id: Optional facility scope.  When provided only the
+                         simulator matching that exact (facility_id, crac_id)
+                         pair is updated — necessary when multiple facilities
+                         share the same crac_id values (e.g. every facility
+                         has a 'CRAC-01').  When omitted the first simulator
+                         whose crac_id matches is updated (backward-compat
+                         with single-facility usage).
+        """
         for key, sim in self._simulators.items():
-            if sim.crac_id == crac_id:
-                sim.apply_control(control)
-                break
+            if facility_id is not None:
+                if sim.facility_id == facility_id and sim.crac_id == crac_id:
+                    sim.apply_control(control)
+                    return
+            else:
+                if sim.crac_id == crac_id:
+                    sim.apply_control(control)
+                    return
 
     def _run_loop(self) -> None:
         logger.info("IoT Simulator started. Publishing every %.1fs", self.publish_interval_s)

@@ -504,7 +504,7 @@ class TestControlAPI:
             yield c
 
     def test_submit_valid_action(self):
-        resp = self._client.post("/api/v1/control/action/CRAC-01", json={
+        resp = self._client.post("/api/v1/control/action/DC-EAST-01/CRAC-01", json={
             "delta_supply_c": -0.5,
             "pump_speed_pct": 80.0,
             "fan_speed_pct": 70.0,
@@ -513,40 +513,41 @@ class TestControlAPI:
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["crac_id"] == "CRAC-01"
+        assert data["facility_id"] == "DC-EAST-01"
 
     def test_submit_action_zero_delta_no_actuators_fails(self):
-        resp = self._client.post("/api/v1/control/action/CRAC-01", json={
+        resp = self._client.post("/api/v1/control/action/DC-EAST-01/CRAC-01", json={
             "delta_supply_c": 0.0,
             "source": "manual",
         })
         assert resp.status_code == 422  # pydantic validation error
 
     def test_action_delta_supply_exceeds_bounds(self):
-        resp = self._client.post("/api/v1/control/action/CRAC-01", json={
+        resp = self._client.post("/api/v1/control/action/DC-EAST-01/CRAC-01", json={
             "delta_supply_c": 5.0,  # exceeds max 2.0
             "source": "manual",
         })
         assert resp.status_code == 422
 
     def test_switch_to_manual_mode(self):
-        resp = self._client.post("/api/v1/control/mode/CRAC-01", json={"mode": "manual"})
+        resp = self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-01", json={"mode": "manual"})
         assert resp.status_code == 200
         data = resp.json()["data"]
         assert data["current_mode"] == "manual"
 
     def test_rl_action_blocked_in_manual_mode(self):
         # Switch to manual
-        self._client.post("/api/v1/control/mode/CRAC-01", json={"mode": "manual"})
+        self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-01", json={"mode": "manual"})
         # RL action should be rejected
-        resp = self._client.post("/api/v1/control/action/CRAC-01", json={
+        resp = self._client.post("/api/v1/control/action/DC-EAST-01/CRAC-01", json={
             "delta_supply_c": 1.0,
             "source": "rl_agent",
         })
         assert resp.status_code == 409
 
     def test_manual_action_allowed_in_manual_mode(self):
-        self._client.post("/api/v1/control/mode/CRAC-01", json={"mode": "manual"})
-        resp = self._client.post("/api/v1/control/action/CRAC-01", json={
+        self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-01", json={"mode": "manual"})
+        resp = self._client.post("/api/v1/control/action/DC-EAST-01/CRAC-01", json={
             "delta_supply_c": 0.5,
             "pump_speed_pct": 75.0,
             "source": "manual",
@@ -554,8 +555,8 @@ class TestControlAPI:
         assert resp.status_code == 200
 
     def test_switch_back_to_auto_mode(self):
-        self._client.post("/api/v1/control/mode/CRAC-02", json={"mode": "manual"})
-        resp = self._client.post("/api/v1/control/mode/CRAC-02", json={"mode": "auto"})
+        self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-02", json={"mode": "manual"})
+        resp = self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-02", json={"mode": "auto"})
         assert resp.status_code == 200
         assert resp.json()["data"]["current_mode"] == "auto"
 
@@ -568,8 +569,8 @@ class TestControlAPI:
 
     def test_setpoint_override_rejected_in_auto_mode(self):
         # Ensure CRAC-02 is in auto
-        self._client.post("/api/v1/control/mode/CRAC-02", json={"mode": "auto"})
-        resp = self._client.post("/api/v1/control/setpoint/CRAC-02", json={
+        self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-02", json={"mode": "auto"})
+        resp = self._client.post("/api/v1/control/setpoint/DC-EAST-01/CRAC-02", json={
             "supply_temp_c": 18.5,
             "pump_speed_pct": 80.0,
             "fan_speed_pct": 70.0,
@@ -578,7 +579,7 @@ class TestControlAPI:
         assert resp.status_code == 409
 
     def test_invalid_mode_rejected(self):
-        resp = self._client.post("/api/v1/control/mode/CRAC-01", json={"mode": "turbo"})
+        resp = self._client.post("/api/v1/control/mode/DC-EAST-01/CRAC-01", json={"mode": "turbo"})
         assert resp.status_code == 422
 
 
@@ -982,4 +983,226 @@ class TestLocalStackS3Integration:
             ) or True  # any failure is acceptable on Community
         # Either path is valid: Pro succeeds, Community gracefully fails
         assert isinstance(result, bool)
+
+
+# ---------------------------------------------------------------------------
+# 16. Multi-facility topology and per-facility control isolation (Commit 2)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=False)
+def reset_control_state():
+    """Reset module-level _crac_modes and _last_actions between tests that
+    manipulate control state, so tests are fully isolated from each other."""
+    import src.backend.api.v1.control as ctrl
+    original_modes = dict(ctrl._crac_modes)
+    original_actions = dict(ctrl._last_actions)
+    ctrl._crac_modes.clear()
+    ctrl._last_actions.clear()
+    yield
+    ctrl._crac_modes.clear()
+    ctrl._last_actions.clear()
+    ctrl._crac_modes.update(original_modes)
+    ctrl._last_actions.update(original_actions)
+
+
+class TestMultiFacilityTopology:
+    """Verify that the 12-CRAC topology is correctly initialised."""
+
+    def test_default_topology_has_three_facilities(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        facility_ids = {t["facility_id"] for t in sim.topology}
+        assert facility_ids == {"DC-EAST-01", "DC-WEST-01", "DC-EU-01"}
+
+    def test_default_topology_has_four_cracs_per_facility(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        for fid in ("DC-EAST-01", "DC-WEST-01", "DC-EU-01"):
+            cracs = [t for t in sim.topology if t["facility_id"] == fid]
+            assert len(cracs) == 4, f"Expected 4 CRACs for {fid}, got {len(cracs)}"
+
+    def test_simulators_keyed_by_facility_crac(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        assert "DC-EAST-01:CRAC-01" in sim._simulators
+        assert "DC-WEST-01:CRAC-01" in sim._simulators
+        assert "DC-EU-01:CRAC-01" in sim._simulators
+
+    def test_regional_ambient_temperatures_differ(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        east_ambient = sim._simulators["DC-EAST-01:CRAC-01"].ambient_c
+        west_ambient = sim._simulators["DC-WEST-01:CRAC-01"].ambient_c
+        eu_ambient   = sim._simulators["DC-EU-01:CRAC-01"].ambient_c
+        assert east_ambient > eu_ambient, "East should be warmer than EU"
+        assert west_ambient > eu_ambient, "West should be warmer than EU"
+        assert east_ambient != west_ambient, "East and West should differ"
+
+    def test_telemetry_payload_carries_facility_id(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        payload = sim._simulators["DC-WEST-01:CRAC-02"].step()
+        assert payload.facility_id == "DC-WEST-01"
+        assert payload.crac_id == "CRAC-02"
+
+    def test_apply_control_action_targets_correct_facility(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        original_east = sim._simulators["DC-EAST-01:CRAC-01"].supply_c
+        original_west = sim._simulators["DC-WEST-01:CRAC-01"].supply_c
+        # Apply -1.0 delta only to DC-WEST-01 CRAC-01
+        sim.apply_control_action("CRAC-01", {"delta_supply_c": -1.0}, facility_id="DC-WEST-01")
+        sim._simulators["DC-WEST-01:CRAC-01"].step()  # apply the pending control
+        # East-01 CRAC-01 must be unchanged
+        assert sim._simulators["DC-EAST-01:CRAC-01"].supply_c == original_east
+
+    def test_unknown_facility_leaves_no_simulator_changed(self):
+        from src.aws.iot.iot_publisher import IoTSimulator
+        sim = IoTSimulator()
+        before = {k: v.supply_c for k, v in sim._simulators.items()}
+        # Applying to an unknown facility should silently return without error
+        sim.apply_control_action("CRAC-01", {"delta_supply_c": -2.0}, facility_id="DC-UNKNOWN-99")
+        after = {k: v.supply_c for k, v in sim._simulators.items()}
+        assert before == after
+
+
+class TestControlIsolationByFacility:
+    """Per-facility-CRAC isolation in the control API state stores."""
+
+    def test_get_crac_mode_defaults_to_auto(self, reset_control_state):
+        from src.backend.api.v1.control import get_crac_mode
+        assert get_crac_mode("CRAC-01", facility_id="DC-EAST-01") == "auto"
+        assert get_crac_mode("CRAC-01", facility_id="DC-WEST-01") == "auto"
+
+    def test_mode_isolation_between_facilities(self, reset_control_state):
+        """Setting mode for CRAC-01 in DC-EAST-01 must not affect DC-WEST-01."""
+        import src.backend.api.v1.control as ctrl
+        from src.backend.api.v1.control import get_crac_mode
+        ctrl._crac_modes[("DC-EAST-01", "CRAC-01")] = "manual"
+        assert get_crac_mode("CRAC-01", facility_id="DC-EAST-01") == "manual"
+        assert get_crac_mode("CRAC-01", facility_id="DC-WEST-01") == "auto"
+
+    def test_record_action_isolation_between_facilities(self, reset_control_state):
+        """Actions recorded for DC-EAST-01 must not appear in DC-WEST-01 status."""
+        import src.backend.api.v1.control as ctrl
+        from src.backend.api.v1.control import record_action
+        record_action("CRAC-02", {"delta_supply_c": 0.5}, "manual", facility_id="DC-EAST-01")
+        assert ("DC-EAST-01", "CRAC-02") in ctrl._last_actions
+        assert ("DC-WEST-01", "CRAC-02") not in ctrl._last_actions
+
+    def test_backward_compat_get_crac_mode_no_facility_arg(self, reset_control_state):
+        """get_crac_mode(crac_id) with no facility_id arg must default to DC-EAST-01."""
+        import src.backend.api.v1.control as ctrl
+        from src.backend.api.v1.control import get_crac_mode
+        ctrl._crac_modes[("DC-EAST-01", "CRAC-01")] = "manual"
+        # Old-style call: just crac_id, no keyword
+        assert get_crac_mode("CRAC-01") == "manual"
+
+    def test_backward_compat_record_action_no_facility_arg(self, reset_control_state):
+        """record_action(crac_id, ...) with no facility_id must write to DC-EAST-01 key."""
+        import src.backend.api.v1.control as ctrl
+        from src.backend.api.v1.control import record_action
+        record_action("CRAC-03", {"delta_supply_c": 1.0}, "rl_agent")
+        assert ("DC-EAST-01", "CRAC-03") in ctrl._last_actions
+
+    def test_reset_fixture_clears_state(self, reset_control_state):
+        """After the fixture runs, both stores must be empty for this test."""
+        import src.backend.api.v1.control as ctrl
+        assert len(ctrl._crac_modes) == 0
+        assert len(ctrl._last_actions) == 0
+
+
+class TestControlAPIMultiFacility:
+    """HTTP-level tests for multi-facility control routes using FastAPI TestClient."""
+
+    @pytest.fixture(autouse=True)
+    def _reset(self, reset_control_state):
+        """Ensure control state is clean before each test in this class."""
+        pass
+
+    def _get_client(self):
+        from fastapi.testclient import TestClient
+        from src.backend.main import app
+        return TestClient(app)
+
+    def test_status_404_for_unknown_facility(self):
+        client = self._get_client()
+        resp = client.get("/api/v1/control/status/DC-UNKNOWN-99")
+        assert resp.status_code == 404
+
+    def test_status_ok_for_known_facility(self):
+        client = self._get_client()
+        resp = client.get("/api/v1/control/status/DC-EAST-01")
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["facility_id"] == "DC-EAST-01"
+        assert data["crac_count"] == 4
+
+    def test_action_404_for_unknown_facility(self):
+        client = self._get_client()
+        resp = client.post(
+            "/api/v1/control/action/DC-UNKNOWN-99/CRAC-01",
+            json={"delta_supply_c": -0.5, "source": "manual"},
+        )
+        assert resp.status_code == 404
+
+    def test_action_404_for_unknown_crac_in_known_facility(self):
+        client = self._get_client()
+        resp = client.post(
+            "/api/v1/control/action/DC-EAST-01/CRAC-99",
+            json={"delta_supply_c": -0.5, "source": "manual"},
+        )
+        assert resp.status_code == 404
+
+    def test_action_ok_for_valid_facility_crac(self):
+        client = self._get_client()
+        resp = client.post(
+            "/api/v1/control/action/DC-EAST-01/CRAC-01",
+            json={"delta_supply_c": -0.5, "pump_speed_pct": 80.0, "source": "manual"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["data"]["facility_id"] == "DC-EAST-01"
+
+    def test_action_isolation_different_facilities_same_crac_id(self):
+        """CRAC-01 in DC-EAST-01 and DC-WEST-01 must be controlled independently."""
+        client = self._get_client()
+        import src.backend.api.v1.control as ctrl
+        # Put DC-EAST-01 CRAC-01 in manual mode
+        ctrl._crac_modes[("DC-EAST-01", "CRAC-01")] = "manual"
+        # DC-WEST-01 CRAC-01 should still be in auto — RL action must not be blocked there
+        resp = client.post(
+            "/api/v1/control/action/DC-WEST-01/CRAC-01",
+            json={"delta_supply_c": -0.3, "source": "rl_agent"},
+        )
+        # DC-WEST-01 CRAC-01 is in auto => RL action should succeed (200)
+        assert resp.status_code == 200
+
+    def test_mode_switch_isolated_per_facility(self):
+        """Switching mode on DC-EU-01 CRAC-02 must not affect DC-EAST-01 CRAC-02."""
+        client = self._get_client()
+        client.post(
+            "/api/v1/control/mode/DC-EU-01/CRAC-02",
+            json={"mode": "manual"},
+        )
+        from src.backend.api.v1.control import get_crac_mode
+        assert get_crac_mode("CRAC-02", facility_id="DC-EU-01") == "manual"
+        assert get_crac_mode("CRAC-02", facility_id="DC-EAST-01") == "auto"
+
+    def test_schema_composite_pk_no_crac_collision(self):
+        """Verify postgres_schema.sql uses composite PK syntax for crac_units."""
+        import re
+        schema = open("database/postgres_schema.sql").read()
+        # composite PK must be present
+        assert re.search(r"PRIMARY KEY\s*\(\s*facility_id\s*,\s*crac_id\s*\)", schema), \
+            "crac_units must have composite PK (facility_id, crac_id)"
+        # old single-column PK must not exist for crac_id alone
+        assert "crac_id             VARCHAR(64)  PRIMARY KEY" not in schema, \
+            "Single-column crac_id PK still present — migration incomplete"
+
+    def test_schema_seed_has_three_facilities(self):
+        """Verify all 3 facility IDs are seeded in postgres_schema.sql."""
+        schema = open("database/postgres_schema.sql").read()
+        for fid in ("DC-EAST-01", "DC-WEST-01", "DC-EU-01"):
+            assert fid in schema, f"Facility '{fid}' missing from seed data"
+
 
