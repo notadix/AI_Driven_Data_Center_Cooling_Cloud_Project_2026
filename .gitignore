@@ -37,3 +37,6 @@ dataset/raw/*
 dataset/processed/*
 !dataset/processed/.gitkeep
 
+
+# Per-seed RL experiment checkpoints (only the selected best agent is committed)
+models/rl_runs/
