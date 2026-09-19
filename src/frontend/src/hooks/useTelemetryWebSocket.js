@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_BASE, WS_BASE } from '../config';
 
 /**
  * Resilient custom React hook for high-frequency telemetry streaming.
@@ -81,6 +82,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
           row: r,
           col: c - 1,
           temp_c: Number(baseTemp.toFixed(1)),
+          offset_c: Number((r * 0.15 + (c - 1) * 0.1).toFixed(2)),
           power_kw: Number((22.0 + Math.random() * 8.0).toFixed(1)),
           ashrae_status: baseTemp > 27.0 ? 'SLA_BREACH' : 'NORMAL',
           crac_id: r < 4 ? (c <= 4 ? 'CRAC-01' : 'CRAC-03') : (c <= 4 ? 'CRAC-02' : 'CRAC-04'),
@@ -94,11 +96,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   const connectWs = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname || 'localhost';
-    // Use port 8000 for backend during dev if running on 5173
-    const port = window.location.port === '5173' ? '8000' : window.location.port;
-    const wsUrl = `${protocol}//${host}:${port}/ws/stream?facility_id=${facilityId}`;
+    const wsUrl = `${WS_BASE}/ws/stream?facility_id=${facilityId}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -155,8 +153,28 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               cooling_power_kw: readings.length > 0 ? totalCoolingMw * 1000.0 : prev.cooling_power_kw,
               pue: readings.length > 0 && totalItMw > 0 ? Number(((totalItMw + totalCoolingMw) / totalItMw).toFixed(4)) : (p.pue ?? prev.pue),
               wue: p.wue ?? prev.wue,
+              carbon_gco2_kwh: p.grid_carbon_gco2_kwh ?? prev.carbon_gco2_kwh,
               ashrae_status: p.ashrae_status ?? prev.ashrae_status,
             }));
+
+            // Drive the 3D heatmap from live data: every rack served by this
+            // CRAC takes the CRAC's live server-inlet temperature plus its
+            // fixed positional offset (per-rack spatial variation within a
+            // CRAC zone is illustrative; only the CRAC-level reading is live).
+            if (p.crac_id && p.server_inlet_temp_c != null) {
+              const inlet = Number(p.server_inlet_temp_c);
+              setSpatialGrid((prevGrid) =>
+                prevGrid.map((node) => {
+                  if (node.crac_id !== p.crac_id) return node;
+                  const temp = inlet + (node.offset_c ?? 0);
+                  return {
+                    ...node,
+                    temp_c: Number(temp.toFixed(1)),
+                    ashrae_status: temp >= 32.0 ? 'CRITICAL' : (temp > 27.0 || temp < 18.0 ? 'SLA_BREACH' : 'NORMAL'),
+                  };
+                })
+              );
+            }
 
             // Check for SLA breach alarm
             if (p.ashrae_status === 'CRITICAL' || p.ashrae_status === 'SLA_BREACH') {
@@ -205,12 +223,14 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
     // Drop any accumulated per-CRAC power readings from the previous
     // facility so its stale numbers can't leak into this one's aggregate.
     cracPowerRef.current = {};
+    setAlarms([]);
+    setSpatialGrid(generateInitialGrid());
     connectWs();
 
     pollIntervalRef.current = setInterval(async () => {
       if (!connectedRef.current) {
         try {
-          const res = await fetch(`http://localhost:8000/api/v1/telemetry/latest/${facilityId}`);
+          const res = await fetch(`${API_BASE}/api/v1/telemetry/latest/${facilityId}`);
           if (res.ok) {
             const json = await res.json();
             if (json.data && json.data.records && json.data.records.length > 0) {
@@ -268,7 +288,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   // Submit operator control action
   const submitControlAction = async (cracId, actionPayload) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/control/action/${facilityId}/${cracId}`, {
+      const res = await fetch(`${API_BASE}/api/v1/control/action/${facilityId}/${cracId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(actionPayload),
@@ -284,13 +304,16 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   // Toggle control mode (auto vs manual)
   const setControlMode = async (cracId, mode) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/control/mode/${facilityId}/${cracId}`, {
+      const res = await fetch(`${API_BASE}/api/v1/control/mode/${facilityId}/${cracId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode }),
       });
       const data = await res.json();
-      setTelemetry((prev) => ({ ...prev, mode }));
+      // Only reflect the new mode if the backend actually accepted it.
+      if (res.ok) {
+        setTelemetry((prev) => ({ ...prev, mode }));
+      }
       return data;
     } catch {
       setTelemetry((prev) => ({ ...prev, mode }));

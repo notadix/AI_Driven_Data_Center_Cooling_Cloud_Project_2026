@@ -229,7 +229,15 @@ class PhysicsSimulator:
 
         # Rack inlet: mixing of supply and ambient
         free_cool_frac = max(0.0, min(1.0, (self.valve_split_pct / 100.0) * (1.0 - max(0.0, (self.ambient_c - 18.0) / 20.0))))
-        server_inlet_c = (1.0 - free_cool_frac) * self.supply_c + free_cool_frac * min(self.ambient_c, 22.0)
+        # Economizer dampers modulate to hold the supply setpoint: outside air
+        # can reduce chiller load but cannot cool the rack inlet below the
+        # supply temperature (without this floor, cold-climate facilities
+        # showed inlet temps of 9-14 C and were flagged as permanent ASHRAE
+        # SLA breaches for over-cooling).
+        server_inlet_c = max(
+            self.supply_c,
+            (1.0 - free_cool_frac) * self.supply_c + free_cool_frac * min(self.ambient_c, 22.0),
+        )
         server_outlet_c = server_inlet_c + (self.it_power_kw / max(0.1, flow_lpm / 60.0 * 0.25))
 
         # Power calculations

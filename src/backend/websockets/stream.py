@@ -13,6 +13,7 @@ Usage:
 import asyncio
 import json
 import logging
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -31,6 +32,8 @@ async def _stream_messages(
 ) -> None:
     """Reads from the local bus queue and forwards matching messages to the WebSocket client."""
     min_interval = 1.0 / max(0.1, max_rate_hz)
+    heartbeat_interval_s = 1.0
+    last_sent: dict = {}  # topic -> monotonic time of last forwarded message
     sub_queue = local_bus.subscribe()
     client = websocket.client.host if websocket.client else "unknown"
     logger.info("WS client connected: %s (facility=%s, crac=%s)", client, facility_id, crac_id)
@@ -38,13 +41,19 @@ async def _stream_messages(
     try:
         while True:
             try:
-                msg = await asyncio.wait_for(sub_queue.get(), timeout=min_interval)
+                msg = await asyncio.wait_for(sub_queue.get(), timeout=heartbeat_interval_s)
             except asyncio.TimeoutError:
                 # Send heartbeat ping to keep connection alive
                 await websocket.send_text(json.dumps({"type": "heartbeat"}))
                 continue
 
             payload = msg.get("payload", {})
+
+            # Enforce max_rate_hz per topic (each CRAC is its own stream).
+            topic = msg.get("topic", "")
+            now = time.monotonic()
+            if now - last_sent.get(topic, 0.0) < min_interval:
+                continue
 
             # Apply filters
             if facility_id and payload.get("facility_id") != facility_id:
@@ -64,7 +73,8 @@ async def _stream_messages(
                     ashrae_status = "NORMAL"
                 payload = {**payload, "ashrae_status": ashrae_status}
 
-            envelope = {"type": "telemetry", "topic": msg.get("topic", ""), "payload": payload}
+            last_sent[topic] = now
+            envelope = {"type": "telemetry", "topic": topic, "payload": payload}
             await websocket.send_text(json.dumps(envelope))
 
     except WebSocketDisconnect:
@@ -85,7 +95,7 @@ async def telemetry_stream(
     """
     WebSocket endpoint streaming live telemetry from the IoT local bus.
     Message envelope: {"type": "telemetry", "topic": "...", "payload": {...}}
-    Heartbeat: {"type": "heartbeat"} sent every second when no data matches filters.
+    Heartbeat: {"type": "heartbeat"} sent after 1 second with no traffic.
     """
     await websocket.accept()
     await _stream_messages(websocket, facility_id, crac_id, max_rate_hz)

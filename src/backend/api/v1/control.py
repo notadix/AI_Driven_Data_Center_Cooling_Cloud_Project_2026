@@ -340,7 +340,7 @@ async def get_explainability(
     payload = local_bus.get_latest(topic)
     if not payload:
         payload = {
-            "grid_carbon_gco2_kwh": 285.0,
+            "grid_carbon_gco2_kwh": state.carbon_gco2_kwh,
             "fws_supply_temp_c": state.supply_c,
             "return_temp_c": state.return_c,
             "flow_rate_lpm": state.flow_lpm,

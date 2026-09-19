@@ -19,6 +19,14 @@ import {
   Clock,
 } from 'lucide-react';
 
+// AWS region each simulated facility is deployed in (matches the climate/carbon
+// profiles in the backend's REGIONAL_CLIMATE_BASE).
+const FACILITY_REGIONS = {
+  'DC-EAST-01': 'us-east-1',
+  'DC-WEST-02': 'us-west-2',
+  'DC-EU-01': 'eu-west-1',
+};
+
 export default function Dashboard() {
   const [selectedFacility, setSelectedFacility] = useState('DC-EAST-01');
   const [selectedRack, setSelectedRack] = useState(null);
@@ -267,7 +275,7 @@ export default function Dashboard() {
         <CarbonTracker
           carbonIntensity={telemetry.carbon_gco2_kwh || 285}
           totalFacilityKw={(telemetry.it_power_kw || 18450) + (telemetry.cooling_power_kw || 2480)}
-          region="us-east-1"
+          region={FACILITY_REGIONS[selectedFacility] || 'us-east-1'}
         />
 
         {/* Explainable AI (SHAP) Waterfall */}

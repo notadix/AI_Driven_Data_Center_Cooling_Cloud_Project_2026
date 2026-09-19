@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE } from '../config';
 import { Brain, ShieldCheck, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 
 const FEATURE_META = {
@@ -31,10 +32,7 @@ export default function SHAPExplanation({
 
     async function fetchExplainability() {
       try {
-        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-        const host = window.location.hostname || 'localhost';
-        const port = window.location.port === '5173' ? '8000' : (window.location.port || '8000');
-        const url = `${protocol}//${host}:${port}/api/v1/control/explain/${facilityId}/${cracId}`;
+        const url = `${API_BASE}/api/v1/control/explain/${facilityId}/${cracId}`;
 
         const res = await fetch(url);
         if (!res.ok) {

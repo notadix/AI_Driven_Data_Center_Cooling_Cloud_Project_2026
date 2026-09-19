@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sliders, ToggleLeft, ToggleRight, AlertOctagon, Check, RefreshCw, Lock, ShieldAlert } from 'lucide-react';
+import { API_BASE } from '../config';
 
 export default function OperatorControlPanel({
   facilityId = 'DC-EAST-01',
@@ -30,7 +31,7 @@ export default function OperatorControlPanel({
     let cancelled = false;
     const fetchMode = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/control/status/${facilityId}`);
+        const res = await fetch(`${API_BASE}/api/v1/control/status/${facilityId}`);
         if (res.ok) {
           const json = await res.json();
           const crac = json.data?.cracs?.find((c) => c.crac_id === selectedCrac);

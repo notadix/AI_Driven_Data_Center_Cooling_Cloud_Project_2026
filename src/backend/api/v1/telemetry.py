@@ -44,6 +44,16 @@ def _safe_round(v, n=4):
         return v
 
 
+def _require_known_facility(facility_id: str, has_data: bool) -> None:
+    """404 for a facility that neither has data nor exists in the simulator
+    topology (so a typo'd facility_id doesn't silently return an empty 200)."""
+    if has_data:
+        return
+    sim = get_simulator()
+    if not any(t["facility_id"] == facility_id for t in sim.topology):
+        raise HTTPException(status_code=404, detail=f"Unknown facility '{facility_id}'.")
+
+
 # ---------------------------------------------------------------------------
 # GET /latest  — full snapshot across all CRACs
 # ---------------------------------------------------------------------------
@@ -109,6 +119,7 @@ async def get_history(
         logger.error("History query error: %s", e)
         raise HTTPException(status_code=500, detail=f"Timestream query failed: {e}")
 
+    _require_known_facility(facility_id, bool(records))
     return _ok({
         "facility_id": facility_id,
         "crac_id": crac_id,
@@ -176,6 +187,7 @@ async def get_spatial(facility_id: str = Path(..., pattern=_ID_PATTERN)) -> JSON
                 "pue": _safe_round(payload.get("pue"), 4),
             })
 
+    _require_known_facility(facility_id, bool(nodes))
     return _ok({
         "facility_id": facility_id,
         "node_count": len(nodes),
@@ -212,6 +224,7 @@ async def get_analytics(
         ]
         pue_avg = sum(pues) / len(pues) if pues else None
 
+    _require_known_facility(facility_id, pue_avg is not None)
     return _ok({
         "facility_id": facility_id,
         "window_hours": hours,

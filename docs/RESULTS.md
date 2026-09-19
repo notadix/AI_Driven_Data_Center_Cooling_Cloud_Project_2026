@@ -81,10 +81,11 @@ In accordance with rigorous academic integrity, the following caveats and known 
 
 ## 5. Summary of Verification & Test Coverage
 
-- **Total Automated Tests**: **184 passed, 8 skipped** across 5 test files.
+- **Total Automated Tests**: **202 passed, 8 skipped** across 6 test files.
   - `testing/test_ai_models.py` (FNO, Safe-PPO, SageMaker handlers): 26 passed
   - `testing/test_digital_twin_env.py` (Gymnasium physics, ASHRAE boundary validations): 16 passed
   - `testing/test_backend_iot.py` (FastAPI REST, WebSockets, multi-facility control isolation, Prometheus metrics): 124 passed, 8 skipped (need a live LocalStack)
   - `testing/test_explainability_api.py` (feature attributions, topology validation, fallback handling): 5 passed
+  - `testing/test_bugfix_regressions.py` (regression tests for the post-merge review fixes): 18 passed
   - `testing/test_e2e_system.py` (end-to-end telemetry loop, 3D scene schemas, CloudWatch SLA alarms): 13 passed
 - **Frontend Validation**: React 18 + Vite + Three.js production build (`npm run build`) builds cleanly with zero errors (bundle size: 692 kB, gzipped: 183 kB).
