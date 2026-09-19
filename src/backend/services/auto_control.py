@@ -83,6 +83,13 @@ class AutoControlLoop:
         self.interval_s = interval_s
         self._task: Optional[asyncio.Task] = None
         self._running = False
+        self._shield = None
+        from src.backend.services.sensor_guard import SensorGuard
+
+        self._guard = SensorGuard()
+        # Per-CRAC online calibration of the shield's inlet-temperature model (plant drift).
+        self._calibrators: Dict[Any, Any] = {}
+        self._pending_pred: Dict[Any, float] = {}
         self._agent = self._try_load_agent()
 
     def _try_load_agent(self):
@@ -102,19 +109,77 @@ class AutoControlLoop:
             agent = SafePPOAgent(state_dim=hp["state_dim"], action_dim=hp["action_dim"], device="cpu")
             agent.ac.load_state_dict(ckpt["ac_state_dict"])
             agent.ac.eval()
-            logger.info("Auto-control loop loaded Safe-PPO checkpoint: %s", CHECKPOINT_PATH)
+            if ckpt.get("shield", False):
+                from src.ai.rl.safety_shield import SafetyShield
+
+                self._shield = SafetyShield()
+            logger.info(
+                "Auto-control loop loaded Safe-PPO checkpoint: %s (safety shield: %s)",
+                CHECKPOINT_PATH, "on" if self._shield else "off",
+            )
             return agent
         except Exception as e:
             logger.warning("Failed to load Safe-PPO checkpoint (%s); falling back to PID baseline.", e)
             return None
 
     def _select_action(self, obs: np.ndarray) -> np.ndarray:
+        """The policy's proposal, vetoed by the model-based safety shield when the
+        checkpoint was trained with one (the size of the edit is kept in
+        self._last_correction so the action can be logged as SHIELDED)."""
         if self._agent is not None:
             action, *_ = self._agent.select_action(obs, det=True)
+            if self._shield is not None:
+                action, correction = self._shield.filter(obs, action)
+                self._last_correction = correction
+            else:
+                self._last_correction = 0.0
             return action
         from src.ai.rl.reward_functions import BaselineControllers
 
+        self._last_correction = 0.0
         return BaselineControllers.pid(obs)
+
+    def compute_control(self, facility_id: str, crac_id: str, state: Any, payload: Dict[str, Any]):
+        """One control decision for one CRAC. Returns (control, source, safety_status) or None.
+
+        The telemetry is validated first (SensorGuard); a corrupt payload is repaired from the last
+        good reading, and if the fault persists (or there is no good reading to repair from) the
+        conservative PID baseline drives the CRAC instead of the learned policy."""
+        clean, flags, fallback = self._guard.validate(facility_id, crac_id, payload)
+        obs = _build_obs(state, clean)
+        if obs is None:
+            return None
+        if flags:
+            logger.warning("Sensor fault on %s/%s: %s%s", facility_id, crac_id, ",".join(flags),
+                           " -> PID fallback" if fallback else " (repaired)")
+        if fallback:
+            from src.ai.rl.reward_functions import BaselineControllers
+
+            action = BaselineControllers.pid(obs)
+            self._last_correction = 0.0
+            return _action_to_control(action), "baseline_pid", "SENSOR_FAULT"
+
+        key = (facility_id, crac_id)
+        if self._shield is not None:
+            from src.ai.rl.safety_shield import OnlineInletCalibrator
+
+            cal = self._calibrators.setdefault(key, OnlineInletCalibrator())
+            # Learn from the last action's outcome -- but never from a corrupt reading.
+            if not flags and key in self._pending_pred:
+                cal.update(float(clean["server_inlet_temp_c"]), self._pending_pred[key])
+            self._shield.calibrator = cal
+
+        action = self._select_action(obs)
+        if self._shield is not None:
+            self._pending_pred[key] = float(self._shield.predict_inlet(float(obs[3]), float(obs[1]), action[0], action[3]))
+        source = "rl_agent" if self._agent else "baseline_pid"
+        if flags:
+            status = "SENSOR_REPAIRED"
+        elif getattr(self, "_last_correction", 0.0) > 0.0:
+            status = "SHIELDED"
+        else:
+            status = "NORMAL"
+        return _action_to_control(action), source, status
 
     async def _run_loop(self) -> None:
         from src.aws.iot.iot_publisher import get_simulator, local_bus
@@ -134,17 +199,14 @@ class AutoControlLoop:
                 payload = local_bus.get_latest(topic)
                 if state is None or not payload:
                     continue
-                obs = _build_obs(state, payload)
-                if obs is None:
-                    continue
                 try:
-                    action = self._select_action(obs)
-                    control = _action_to_control(action)
+                    decision = self.compute_control(facility_id, crac_id, state, payload)
+                    if decision is None:
+                        continue
+                    control, source, status = decision
                     sim.apply_control_action(crac_id, control, facility_id=facility_id)
                     record_action(
-                        crac_id, control,
-                        source="rl_agent" if self._agent else "baseline_pid",
-                        facility_id=facility_id,
+                        crac_id, control, source=source, safety_status=status, facility_id=facility_id,
                     )
                 except Exception as e:
                     logger.error("Auto-control step failed for %s/%s: %s", facility_id, crac_id, e)
