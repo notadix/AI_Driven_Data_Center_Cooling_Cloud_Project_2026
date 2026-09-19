@@ -129,7 +129,7 @@ class AutoControlLoop:
                 try:
                     action = self._select_action(obs)
                     control = _action_to_control(action)
-                    sim.apply_control_action(crac_id, control)
+                    sim.apply_control_action(crac_id, control, facility_id=facility_id)
                     record_action(
                         crac_id, control,
                         source="rl_agent" if self._agent else "baseline_pid",

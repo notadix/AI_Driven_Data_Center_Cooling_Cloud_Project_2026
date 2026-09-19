@@ -115,9 +115,11 @@ class InMemoryTimestreamStore:
             if crac_id and dims.get("crac_id") != crac_id:
                 continue
             results.append(r)
-            if len(results) >= limit:
-                break
-        return results
+        # Keep the most recent `limit` records (still in ascending time order).
+        # Breaking at the first `limit` matches returned the OLDEST records in
+        # the window, so drift detection and the history API saw stale data
+        # once more than `limit` records had accumulated.
+        return results[-limit:] if limit else results
 
     def aggregate_avg(
         self,
@@ -360,9 +362,10 @@ class TimestreamClient:
             f"SELECT time, facility_id, crac_id, rack_id, measure_name, measure_value::double "
             f"FROM \"{self.DB_NAME}\".\"{self.TABLE_NAME}\" "
             f"WHERE facility_id = '{facility_id}' {crac_pred} {time_pred} "
-            f"ORDER BY time ASC LIMIT {limit}"
+            f"ORDER BY time DESC LIMIT {int(limit)}"
         )
-        return self._tabular_query(query)
+        # Newest `limit` rows, returned oldest-first.
+        return list(reversed(self._tabular_query(query)))
 
     def get_spatial_snapshot(self) -> List[Dict[str, Any]]:
         """Returns latest telemetry per CRAC for spatial heatmap rendering."""

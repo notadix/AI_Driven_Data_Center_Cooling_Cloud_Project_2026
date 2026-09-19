@@ -118,6 +118,7 @@ LAST_SCRAPE_TIMESTAMP = Gauge(
 # ---------------------------------------------------------------------------
 
 ASHRAE_INLET_HIGH = 27.0
+ASHRAE_INLET_LOW = 18.0
 
 
 def update_metrics(simulator: "IoTSimulator") -> None:
@@ -130,35 +131,35 @@ def update_metrics(simulator: "IoTSimulator") -> None:
 
     facility_crac_counts: dict = {}
     facility_breach_counts: dict = {}
+    latest = simulator.get_latest_telemetry()
 
     for key, sim in simulator._simulators.items():
         fid = sim.facility_id
         cid = sim.crac_id
 
         SUPPLY_TEMP_C.labels(fid, cid).set(sim.supply_c)
-        # Rough return-water delta: Q = m_dot * cp * dT => dT = Q / (m_dot * cp)
-        # Use fixed m_dot=20 LPM, cp=4.186 kJ/(kg*C) as a scrape-time approximation
-        return_c = sim.supply_c + (sim.it_power_kw * 3.0 / (4.186 * 20.0))
-        RETURN_TEMP_C.labels(fid, cid).set(round(return_c, 2))
-
-        inlet_c = sim.supply_c + 3.5 + sim.ambient_c * 0.05
-        SERVER_INLET_TEMP_C.labels(fid, cid).set(round(inlet_c, 2))
-
         PUMP_SPEED_PCT.labels(fid, cid).set(sim.pump_pct)
         FAN_SPEED_PCT.labels(fid, cid).set(sim.fan_pct)
         GRID_CARBON.labels(fid, cid).set(sim.carbon_gco2_kwh)
 
-        it_kw   = sim.it_power_kw
-        pump_kw = 15.0 * (sim.pump_pct / 100.0) ** 3
-        fan_kw  = 8.0  * (sim.fan_pct  / 100.0) ** 3
-        pue = (it_kw + pump_kw + fan_kw) / max(0.1, it_kw)
-        PUE.labels(fid, cid).set(round(pue, 4))
+        # Return/inlet temperature and PUE come from the latest published
+        # telemetry so they match what the dashboard and REST API report
+        # (they used to be approximated from setpoints, which ignored the
+        # chiller load and free-air mixing, and gave a different PUE).
+        payload = latest.get(f"datacenter/cooling/telemetry/{fid}/{cid}") or {}
+        inlet_c = payload.get("server_inlet_temp_c")
+        if payload.get("return_temp_c") is not None:
+            RETURN_TEMP_C.labels(fid, cid).set(float(payload["return_temp_c"]))
+        if inlet_c is not None:
+            SERVER_INLET_TEMP_C.labels(fid, cid).set(float(inlet_c))
+        if payload.get("pue") is not None:
+            PUE.labels(fid, cid).set(float(payload["pue"]))
 
         mode = get_crac_mode(cid, facility_id=fid)
         CONTROL_MODE.labels(fid, cid).set(1 if mode == "auto" else 0)
 
         facility_crac_counts[fid] = facility_crac_counts.get(fid, 0) + 1
-        if inlet_c > ASHRAE_INLET_HIGH:
+        if inlet_c is not None and (float(inlet_c) > ASHRAE_INLET_HIGH or float(inlet_c) < ASHRAE_INLET_LOW):
             facility_breach_counts[fid] = facility_breach_counts.get(fid, 0) + 1
 
     for fid, total in facility_crac_counts.items():

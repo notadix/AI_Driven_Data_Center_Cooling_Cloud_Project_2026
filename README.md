@@ -1,6 +1,6 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![CI / Test Suite](https://img.shields.io/badge/pytest-202%20passed-brightgreen.svg)](testing/)
+[![CI / Test Suite](https://img.shields.io/badge/pytest-206%20passed-brightgreen.svg)](testing/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
 [![Three.js](https://img.shields.io/badge/three.js-0.183-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
@@ -150,5 +150,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (202 tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (206 tests)
 ```

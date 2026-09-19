@@ -182,7 +182,7 @@ async def submit_action(
         control["valve_split_pct"] = action.valve_split_pct
 
     sim = get_simulator()
-    sim.apply_control_action(crac_id, control)
+    sim.apply_control_action(crac_id, control, facility_id=facility_id)
 
     record_action(
         crac_id, control, action.source,
@@ -272,7 +272,7 @@ async def set_setpoint(
         "fan_speed_pct": setpoint.fan_speed_pct,
         "valve_split_pct": setpoint.valve_split_pct,
     }
-    sim.apply_control_action(crac_id, control)
+    sim.apply_control_action(crac_id, control, facility_id=facility_id)
     record_action(crac_id, control, source="manual", facility_id=facility_id)
 
     return _ok({
