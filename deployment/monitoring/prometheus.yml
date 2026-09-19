@@ -1,7 +1,7 @@
 # Prometheus scrape configuration for the Cooling Digital Twin stack.
-# NOTE: the FastAPI backend does not yet expose a /metrics endpoint —
-# this job is a placeholder wiring point so `docker-compose up` succeeds
-# and Prometheus is ready the moment metrics instrumentation is added.
+# The FastAPI backend exposes /metrics (Prometheus text format, dedicated
+# COOLING_REGISTRY) via src/backend/metrics.py.  Gauges are updated at
+# scrape time; interval is 15 s.
 global:
   scrape_interval: 15s
   evaluation_interval: 15s

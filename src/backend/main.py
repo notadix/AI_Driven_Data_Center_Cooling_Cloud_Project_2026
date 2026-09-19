@@ -3,6 +3,7 @@ FastAPI Backend — AI-Driven Cooling Digital Twin API Server.
 
 Endpoints:
   GET  /health               — liveness probe
+  GET  /metrics              — Prometheus scrape endpoint (text/plain)
   GET  /api/v1/telemetry/... — telemetry REST routes
   POST /api/v1/control/...   — control REST routes
   WS   /ws/stream            — real-time telemetry WebSocket
@@ -16,13 +17,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
+
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from src.aws.iot.iot_publisher import get_simulator
 from src.backend.api.v1.telemetry import router as telemetry_router
 from src.backend.api.v1.control import router as control_router
 from src.backend.websockets.stream import router as ws_router
 from src.backend.services.auto_control import get_auto_control_loop
+from src.backend.metrics import generate_metrics_output
 
 logging.basicConfig(
     level=logging.INFO,
@@ -100,6 +104,26 @@ async def health() -> JSONResponse:
             for t in sim.topology
         ],
     })
+
+
+@app.get(
+    "/metrics",
+    tags=["Observability"],
+    summary="Prometheus scrape endpoint",
+    response_class=Response,
+    include_in_schema=True,
+)
+async def metrics() -> Response:
+    """Scrape-time Prometheus metrics for all 12 CRACs across 3 facilities.
+
+    Gauges are updated at scrape time by reading live PhysicsSimulator state.
+    Returns Prometheus text format (Content-Type: text/plain; version=0.0.4).
+    Uses a dedicated CollectorRegistry (not the global one) to avoid leakage
+    from third-party prometheus_client instrumentation.
+    """
+    sim = get_simulator()
+    output = generate_metrics_output(sim)
+    return Response(content=output, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/", tags=["Health"], include_in_schema=False)

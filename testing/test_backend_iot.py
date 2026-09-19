@@ -1224,3 +1224,150 @@ class TestControlAPIMultiFacility:
         assert "DC-WEST-01" not in schema, "Stale DC-WEST-01 found in postgres_schema.sql"
 
 
+# ---------------------------------------------------------------------------
+# 12. Prometheus /metrics endpoint  (Commit 3)
+# ---------------------------------------------------------------------------
+
+class TestPrometheusMetrics:
+    """Tests for the /metrics scrape endpoint and the metrics module."""
+
+    @pytest.fixture(scope="class")
+    def client(self, request):
+        """FastAPI test client with simulator running."""
+        from fastapi.testclient import TestClient
+        from src.backend.main import app
+        with TestClient(app) as c:
+            request.cls._client = c
+            yield c
+
+    def _get_client(self):
+        return self._client
+
+    # --- HTTP contract ---
+
+    def test_metrics_endpoint_returns_200(self, client):
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+
+    def test_metrics_content_type_is_prometheus_text(self, client):
+        resp = client.get("/metrics")
+        ct = resp.headers.get("content-type", "")
+        assert "text/plain" in ct, f"Expected text/plain, got: {ct}"
+
+    def test_metrics_body_contains_help_lines(self, client):
+        resp = client.get("/metrics")
+        body = resp.text
+        assert "# HELP" in body, "Response must contain # HELP lines"
+        assert "# TYPE" in body, "Response must contain # TYPE lines"
+
+    def test_metrics_contains_cooling_supply_temp(self, client):
+        resp = client.get("/metrics")
+        assert "cooling_crac_supply_temp_c" in resp.text
+
+    def test_metrics_contains_cooling_sla_violation_rate(self, client):
+        resp = client.get("/metrics")
+        assert "cooling_sla_violation_rate" in resp.text
+
+    def test_metrics_contains_grid_carbon_gauge(self, client):
+        resp = client.get("/metrics")
+        assert "cooling_crac_grid_carbon_gco2_kwh" in resp.text
+
+    def test_metrics_no_total_suffix_on_gauges(self, client):
+        """Gauges must not end in _total; that suffix is reserved for Counters."""
+        resp = client.get("/metrics")
+        lines = resp.text.splitlines()
+        for line in lines:
+            if line.startswith("# TYPE") and "gauge" in line.lower():
+                metric_name = line.split()[2]
+                assert not metric_name.endswith("_total"), (
+                    f"Gauge '{metric_name}' illegally ends in _total"
+                )
+
+    def test_metrics_has_labels_for_all_three_facilities(self, client):
+        resp = client.get("/metrics")
+        body = resp.text
+        for fid in ("DC-EAST-01", "DC-WEST-02", "DC-EU-01"):
+            assert fid in body, f"Facility '{fid}' not present in /metrics output"
+
+    def test_metrics_second_scrape_is_also_200(self, client):
+        """Verify /metrics is idempotent and doesn't crash on repeat calls."""
+        r1 = client.get("/metrics")
+        r2 = client.get("/metrics")
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+
+    # --- Per-metric value tests (need client fixture) ---
+
+    def test_metrics_pue_is_positive(self, client):
+        resp = client.get("/metrics")
+        for line in resp.text.splitlines():
+            if line.startswith("cooling_facility_pue{") and not line.startswith("#"):
+                value = float(line.split()[-1])
+                assert value > 0.0, f"PUE must be positive, got {value}"
+
+    def test_metrics_last_scrape_timestamp_nonzero(self, client):
+        import time
+        resp = client.get("/metrics")
+        ts_line = next(
+            (l for l in resp.text.splitlines()
+             if l.startswith("cooling_metrics_last_scrape_timestamp_seconds")
+             and not l.startswith("#")),
+            None,
+        )
+        assert ts_line is not None, "last_scrape_timestamp metric missing"
+        ts = float(ts_line.split()[-1])
+        assert ts > time.time() - 10, "last_scrape_timestamp is too old"
+
+    def test_metrics_second_scrape_is_also_200(self, client):
+        """Verify /metrics is idempotent and doesn't crash on repeat calls."""
+        r1 = client.get("/metrics")
+        r2 = client.get("/metrics")
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+
+    # --- Unit tests for metrics module ---
+
+    def test_update_metrics_populates_supply_temp(self):
+        """update_metrics() should set SUPPLY_TEMP_C for each simulator."""
+        from src.aws.iot.iot_publisher import IoTSimulator
+        from src.backend.metrics import update_metrics, SUPPLY_TEMP_C, COOLING_REGISTRY
+        sim = IoTSimulator()
+        sim.start()
+        try:
+            update_metrics(sim)
+            # Check at least DC-EAST-01 CRAC-01 has a reading
+            sample = SUPPLY_TEMP_C.labels("DC-EAST-01", "CRAC-01")
+            val = sample._value.get()
+            assert isinstance(val, float)
+            assert 10.0 < val < 35.0, f"Unexpected supply_c value: {val}"
+        finally:
+            sim.stop()
+
+    def test_update_metrics_west_carbon_lower_than_east(self):
+        """DC-WEST-02 (high renewables) must show lower carbon than DC-EAST-01."""
+        from src.aws.iot.iot_publisher import IoTSimulator
+        from src.backend.metrics import update_metrics, GRID_CARBON
+        sim = IoTSimulator()
+        sim.start()
+        try:
+            update_metrics(sim)
+            east_carbon = GRID_CARBON.labels("DC-EAST-01", "CRAC-01")._value.get()
+            west_carbon = GRID_CARBON.labels("DC-WEST-02", "CRAC-01")._value.get()
+            assert west_carbon < east_carbon, (
+                f"West carbon ({west_carbon}) must be less than East ({east_carbon})"
+            )
+        finally:
+            sim.stop()
+
+    def test_generate_metrics_output_returns_bytes(self):
+        """generate_metrics_output() must return bytes for FastAPI Response."""
+        from src.aws.iot.iot_publisher import IoTSimulator
+        from src.backend.metrics import generate_metrics_output
+        sim = IoTSimulator()
+        sim.start()
+        try:
+            output = generate_metrics_output(sim)
+            assert isinstance(output, bytes)
+            assert len(output) > 100
+        finally:
+            sim.stop()

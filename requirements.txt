@@ -1,11 +1,12 @@
 # AI-Driven Cooling Digital Twin — backend & AI runtime dependencies.
 # Generated from actual imports across src/, database/, dataset/, testing/,
-# pinned to the versions this repo's test suite (135 passed, 1 skipped) runs against.
+# pinned to the versions this repo's test suite (165 passed, 3 skipped) runs against.
 
 # Backend / API
 fastapi>=0.138.0
 uvicorn[standard]>=0.49.0
 pydantic>=2.13.4
+prometheus_client>=0.20.0  # /metrics endpoint (COOLING_REGISTRY, scrape-time gauges)
 
 # AWS SDK (IoT Core, Timestream, SiteWise, SageMaker, Step Functions, EventBridge, SNS)
 boto3>=1.43.97
