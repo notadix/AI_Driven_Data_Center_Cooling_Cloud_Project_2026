@@ -2,8 +2,16 @@
 Amazon Timestream client for cooling telemetry ingestion and analytical queries.
 
 Dual-mode:
-  - AWS Cloud: Uses boto3 timestream-write + timestream-query clients.
+  - AWS Cloud / LocalStack: Uses boto3 timestream-write + timestream-query clients.
+    Endpoint is controlled via AWS_ENDPOINT_URL (e.g. http://localhost:4566).
   - Local / Offline: Falls back to an in-memory ring buffer with identical query API.
+
+Environment variables:
+  LOCAL_MODE            — "true" to force in-memory mode (default: "false")
+  AWS_ENDPOINT_URL      — Override boto3 endpoint (e.g. LocalStack). Unset = real AWS.
+  AWS_ACCESS_KEY_ID     — AWS / LocalStack access key (default: unset)
+  AWS_SECRET_ACCESS_KEY — AWS / LocalStack secret key (default: unset)
+  AWS_REGION            — AWS region (default: us-east-1)
 """
 
 import logging
@@ -18,6 +26,23 @@ import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger(__name__)
+
+
+def _build_boto3_kwargs(region: str) -> Dict[str, Any]:
+    """Build keyword arguments for boto3.client() that honour AWS_ENDPOINT_URL
+    and explicit credentials without breaking LOCAL_MODE=true paths.
+    When AWS_ENDPOINT_URL is unset the returned dict contains only region_name
+    so boto3 behaves exactly as before."""
+    kwargs: Dict[str, Any] = {"region_name": region}
+    endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
+    if endpoint_url:
+        kwargs["endpoint_url"] = endpoint_url
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if access_key and secret_key:
+        kwargs["aws_access_key_id"] = access_key
+        kwargs["aws_secret_access_key"] = secret_key
+    return kwargs
 
 # facility_id/crac_id are interpolated directly into the query strings below
 # (f-string text, not a parameterized Timestream query) — reject anything
@@ -160,9 +185,14 @@ class TimestreamClient:
 
         if not local_mode:
             try:
-                self._write_client = boto3.client("timestream-write", region_name=self.REGION)
-                self._query_client = boto3.client("timestream-query", region_name=self.REGION)
-                logger.info("Connected to Amazon Timestream: %s.%s", self.DB_NAME, self.TABLE_NAME)
+                boto_kwargs = _build_boto3_kwargs(self.REGION)
+                self._write_client = boto3.client("timestream-write", **boto_kwargs)
+                self._query_client = boto3.client("timestream-query", **boto_kwargs)
+                endpoint = os.environ.get("AWS_ENDPOINT_URL", "real AWS")
+                logger.info(
+                    "Connected to Amazon Timestream: %s.%s (endpoint: %s)",
+                    self.DB_NAME, self.TABLE_NAME, endpoint,
+                )
             except Exception as e:
                 logger.warning("Timestream init failed, using in-memory mode: %s", e)
                 self.local_mode = True

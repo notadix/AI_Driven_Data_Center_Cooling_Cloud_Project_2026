@@ -7,8 +7,17 @@ MAE-based metrics.  Triggers the Step Functions retraining workflow when
 drift exceeds configurable thresholds.
 
 Dual-mode:
-  - AWS Cloud: Publishes EventBridge events, triggers Step Functions.
+  - AWS Cloud / LocalStack: Publishes EventBridge events, triggers Step Functions.
+    Endpoint controlled by AWS_ENDPOINT_URL (e.g. http://localhost:4566).
   - Local / Offline: Logs drift events to the local bus and console.
+
+Environment variables:
+  LOCAL_MODE            — "true" forces local-only mode (default: "false").
+  AWS_ENDPOINT_URL      — Override boto3 endpoint for LocalStack.
+  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — Optional credential override.
+  STEP_FUNCTIONS_ARN    — State machine ARN to trigger.
+  EVENT_BUS_NAME        — EventBridge bus name (default: "default").
+  SNS_ALERT_TOPIC_ARN   — SNS topic for drift alerts.
 """
 
 import json
@@ -23,6 +32,20 @@ import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger(__name__)
+
+
+def _build_boto3_kwargs(region: str) -> Dict[str, Any]:
+    """Build boto3.client() kwargs honoring AWS_ENDPOINT_URL and credentials."""
+    kwargs: Dict[str, Any] = {"region_name": region}
+    endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
+    if endpoint_url:
+        kwargs["endpoint_url"] = endpoint_url
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if access_key and secret_key:
+        kwargs["aws_access_key_id"] = access_key
+        kwargs["aws_secret_access_key"] = secret_key
+    return kwargs
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -111,9 +134,10 @@ class DriftDetector:
 
         if not LOCAL_MODE:
             try:
-                self._sf_client = boto3.client("stepfunctions", region_name=AWS_REGION)
-                self._events_client = boto3.client("events", region_name=AWS_REGION)
-                self._sns_client = boto3.client("sns", region_name=AWS_REGION)
+                boto_kwargs = _build_boto3_kwargs(AWS_REGION)
+                self._sf_client = boto3.client("stepfunctions", **boto_kwargs)
+                self._events_client = boto3.client("events", **boto_kwargs)
+                self._sns_client = boto3.client("sns", **boto_kwargs)
             except Exception as e:
                 logger.warning("AWS client init failed: %s", e)
 

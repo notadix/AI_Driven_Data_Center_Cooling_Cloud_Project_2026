@@ -10,6 +10,11 @@ Implements the three TwinMaker UDQ interface methods:
   - get_property_value
   - get_property_value_history
   - batch_put_property_values
+
+Environment variables:
+  LOCAL_MODE       — "true" to force local mode.
+  AWS_ENDPOINT_URL — Override boto3 endpoint (e.g. http://localhost:4566 for LocalStack).
+  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — Optional credential override.
 """
 
 import json
@@ -23,6 +28,20 @@ import boto3
 from botocore.exceptions import ClientError, BotoCoreError
 
 logger = logging.getLogger(__name__)
+
+
+def _build_boto3_kwargs(region: str) -> Dict[str, Any]:
+    """Build boto3.client() kwargs honoring AWS_ENDPOINT_URL and credentials."""
+    kwargs: Dict[str, Any] = {"region_name": region}
+    endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
+    if endpoint_url:
+        kwargs["endpoint_url"] = endpoint_url
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if access_key and secret_key:
+        kwargs["aws_access_key_id"] = access_key
+        kwargs["aws_secret_access_key"] = secret_key
+    return kwargs
 
 # entity_id/property_name are interpolated directly into Timestream query
 # strings below (f-string text, not a parameterized query), so anything not
@@ -80,8 +99,9 @@ class TwinMakerUDQConnector:
 
         if not local_mode:
             try:
-                self._ts_query_client = boto3.client("timestream-query", region_name=self.AWS_REGION)
-                self._sitewise_client = boto3.client("iotsitewise", region_name=self.AWS_REGION)
+                boto_kwargs = _build_boto3_kwargs(self.AWS_REGION)
+                self._ts_query_client = boto3.client("timestream-query", **boto_kwargs)
+                self._sitewise_client = boto3.client("iotsitewise", **boto_kwargs)
             except Exception as e:
                 logger.warning("AWS client init failed, falling back to local mode: %s", e)
                 self.local_mode = True

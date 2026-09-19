@@ -2,8 +2,12 @@
 AWS IoT Core MQTT Publisher & Physics-Grounded Telemetry Simulator.
 
 Dual-mode operation:
-  - AWS Cloud Mode: Publishes to AWS IoT Core over MQTT/TLS using boto3 IoT Data Plane.
-  - Local Offline Mode: Publishes to an in-memory async queue consumed by the FastAPI backend.
+  - AWS Cloud / LocalStack Mode: Publishes to AWS IoT Core over MQTT/TLS using
+    boto3 IoT Data Plane.  When AWS_ENDPOINT_URL is set (e.g. LocalStack at
+    http://localhost:4566) that URL is used as the iot-data endpoint, allowing
+    local development without real AWS credentials.
+  - Local Offline Mode: Publishes to an in-memory async queue consumed by the
+    FastAPI backend.
 
 MQTT Topics:
   Telemetry: datacenter/cooling/telemetry/{facility_id}/{crac_id}
@@ -281,7 +285,15 @@ local_bus = LocalTelemetryBus()
 # ---------------------------------------------------------------------------
 
 class AWSIoTPublisher:
-    """Publishes MQTT messages via AWS IoT Core Data Plane using boto3."""
+    """Publishes MQTT messages via AWS IoT Core Data Plane using boto3.
+
+    The endpoint for the iot-data client is resolved in order:
+      1. AWS_IOT_ENDPOINT env var (original custom IoT endpoint like
+         xxxx.iot.us-east-1.amazonaws.com — used as-is with https://).
+      2. AWS_ENDPOINT_URL env var (LocalStack-style, already a full URL
+         including scheme, used directly).
+      Both paths pass AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY if present.
+    """
 
     def __init__(
         self,
@@ -292,13 +304,29 @@ class AWSIoTPublisher:
     ):
         self.endpoint = endpoint
         self.region = region
-        self._client = boto3.client(
-            "iot-data",
-            endpoint_url=f"https://{endpoint}",
-            region_name=region,
-            aws_access_key_id=aws_access_key_id,
-            aws_secret_access_key=aws_secret_access_key,
-        )
+
+        # Derive endpoint_url: prefer explicit AWS_ENDPOINT_URL (LocalStack)
+        # so we never blindly prepend https:// to an http:// address.
+        aws_endpoint_url = os.environ.get("AWS_ENDPOINT_URL")
+        if aws_endpoint_url:
+            endpoint_url = aws_endpoint_url
+        else:
+            # Traditional IoT Core custom endpoint hostname — always HTTPS.
+            ep = endpoint.lstrip("https://").lstrip("http://")
+            endpoint_url = f"https://{ep}"
+
+        boto_kwargs: Dict[str, Any] = {
+            "region_name": region,
+            "endpoint_url": endpoint_url,
+        }
+        # Credential pass-through (env takes precedence over constructor args)
+        key = os.environ.get("AWS_ACCESS_KEY_ID") or aws_access_key_id
+        secret = os.environ.get("AWS_SECRET_ACCESS_KEY") or aws_secret_access_key
+        if key and secret:
+            boto_kwargs["aws_access_key_id"] = key
+            boto_kwargs["aws_secret_access_key"] = secret
+
+        self._client = boto3.client("iot-data", **boto_kwargs)
 
     def publish(self, topic: str, payload: str, qos: int = 1) -> bool:
         try:

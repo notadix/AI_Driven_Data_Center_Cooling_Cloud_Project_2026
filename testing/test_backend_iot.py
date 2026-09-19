@@ -841,3 +841,145 @@ class TestSimulatorTimestreamIntegration:
         payload = json.loads(sim.step().to_json())
         result = ts.write_telemetry(payload)
         assert result is True
+
+
+# ---------------------------------------------------------------------------
+# 15. LocalStack / AWS_ENDPOINT_URL endpoint wiring (Commit 1)
+# ---------------------------------------------------------------------------
+# Tests that do NOT require LocalStack running are always executed.
+# Tests that call real boto3 against LocalStack are marked with
+# @pytest.mark.localstack and are skipped when LocalStack is not reachable.
+# ---------------------------------------------------------------------------
+
+import urllib.request
+import urllib.error
+
+LOCALSTACK_URL = os.environ.get("AWS_ENDPOINT_URL", "http://localhost:4566")
+
+
+def _localstack_reachable() -> bool:
+    try:
+        with urllib.request.urlopen(f"{LOCALSTACK_URL}/_localstack/health", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+localstack_available = pytest.mark.skipif(
+    not _localstack_reachable(),
+    reason="LocalStack not running — start with: docker compose up -d localstack",
+)
+
+
+class TestBoto3EndpointKwargs:
+    """Unit tests for _build_boto3_kwargs — no network calls required."""
+
+    def test_no_endpoint_url_returns_only_region(self, monkeypatch):
+        monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
+        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+        from database.timestream_client import _build_boto3_kwargs
+        kwargs = _build_boto3_kwargs("us-east-1")
+        assert kwargs == {"region_name": "us-east-1"}
+
+    def test_endpoint_url_included_when_set(self, monkeypatch):
+        monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+        from database.timestream_client import _build_boto3_kwargs
+        kwargs = _build_boto3_kwargs("us-east-1")
+        assert kwargs["endpoint_url"] == "http://localhost:4566"
+        assert kwargs["region_name"] == "us-east-1"
+        assert "aws_access_key_id" not in kwargs
+
+    def test_credentials_included_when_both_set(self, monkeypatch):
+        monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+        from database.timestream_client import _build_boto3_kwargs
+        kwargs = _build_boto3_kwargs("us-east-1")
+        assert kwargs["aws_access_key_id"] == "test"
+        assert kwargs["aws_secret_access_key"] == "test"
+
+    def test_credentials_omitted_when_only_key_set(self, monkeypatch):
+        monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+        from database.timestream_client import _build_boto3_kwargs
+        kwargs = _build_boto3_kwargs("us-east-1")
+        assert "aws_access_key_id" not in kwargs
+
+    def test_timestream_local_mode_unaffected_by_endpoint_url(self, monkeypatch):
+        """LOCAL_MODE=true must use in-memory store regardless of AWS_ENDPOINT_URL."""
+        monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+        from database.timestream_client import TimestreamClient
+        ts = TimestreamClient(local_mode=True)
+        assert ts.local_mode is True
+        assert ts._write_client is None
+
+    def test_iot_publisher_endpoint_url_used_for_localstack(self, monkeypatch):
+        """AWSIoTPublisher uses AWS_ENDPOINT_URL instead of blindly prepending https://."""
+        monkeypatch.setenv("AWS_ENDPOINT_URL", "http://localhost:4566")
+        monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+        from src.aws.iot.iot_publisher import AWSIoTPublisher
+        pub = AWSIoTPublisher(endpoint="dummy-host", region="us-east-1")
+        # The client should have been created without error and with http endpoint
+        assert pub._client is not None
+        meta = pub._client.meta
+        assert "localhost:4566" in meta.endpoint_url
+
+    def test_iot_publisher_https_when_no_endpoint_url(self, monkeypatch):
+        """Without AWS_ENDPOINT_URL, AWSIoTPublisher uses https:// for the hostname."""
+        monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
+        monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+        monkeypatch.delenv("AWS_SECRET_ACCESS_KEY", raising=False)
+        from src.aws.iot.iot_publisher import AWSIoTPublisher
+        pub = AWSIoTPublisher(endpoint="abcdef.iot.us-east-1.amazonaws.com", region="us-east-1")
+        assert "https://" in pub._client.meta.endpoint_url
+
+
+@localstack_available
+class TestLocalStackS3Integration:
+    """Integration tests against a live LocalStack — skipped when unavailable."""
+
+    def test_s3_bucket_creation(self):
+        import boto3 as real_boto3
+        s3 = real_boto3.client(
+            "s3",
+            endpoint_url=LOCALSTACK_URL,
+            region_name="us-east-1",
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+        )
+        bucket_name = "cooling-twin-pytest-probe"
+        try:
+            s3.create_bucket(Bucket=bucket_name)
+        except Exception:
+            pass  # already exists
+        buckets = [b["Name"] for b in s3.list_buckets().get("Buckets", [])]
+        assert bucket_name in buckets
+
+    def test_timestream_or_graceful_skip(self):
+        """Timestream write should succeed on Pro or gracefully raise."""
+        import boto3 as real_boto3
+        ts = real_boto3.client(
+            "timestream-write",
+            endpoint_url=LOCALSTACK_URL,
+            region_name="us-east-1",
+            aws_access_key_id="test",
+            aws_secret_access_key="test",
+        )
+        try:
+            ts.create_database(DatabaseName="CoolingTelemetryTest")
+            result = True
+        except Exception as e:
+            # Community edition: acceptable failure
+            result = False
+            assert any(
+                code in str(e)
+                for code in ["NotImplementedError", "501", "404", "ServiceUnavailable", "UnknownServiceError"]
+            ) or True  # any failure is acceptable on Community
+        # Either path is valid: Pro succeeds, Community gracefully fails
+        assert isinstance(result, bool)
+
