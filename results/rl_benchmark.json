@@ -1,20 +1,442 @@
 {
+  "protocol": {
+    "benchmark_episodes": 30,
+    "benchmark_seeds": [
+      5000,
+      5029
+    ],
+    "selection_seeds": [
+      1000,
+      1009
+    ],
+    "episode": "144 steps x 10 min = 1 simulated day",
+    "primary_metric": "cooling_kwh (cooling energy per simulated day) vs the Guideline-36-style baseline",
+    "note": "GL36_Rule is a reset-schedule implementation in reward_functions.py, not a certified GL36 sequence."
+  },
+  "baselines": {
+    "Constant_Setpoint": {
+      "cooling_kwh": 21717.502843,
+      "cooling_kwh_std": 3506.04362,
+      "pue": 1.05306,
+      "pue_std": 0.002723,
+      "violation_rate": 0.080093,
+      "violation_rate_std": 0.190258,
+      "emissions_kg": 6.700915,
+      "emissions_kg_std": 2.454261,
+      "reward": -309.578186,
+      "reward_std": 903.647971,
+      "cost": 17.712048,
+      "cost_std": 60.208089,
+      "violations": 11.533333,
+      "violations_std": 27.397122,
+      "it_kwh": 409275.15682,
+      "it_kwh_std": 66203.501869
+    },
+    "PID_Feedback": {
+      "cooling_kwh": 21367.728478,
+      "cooling_kwh_std": 3489.016628,
+      "pue": 1.052209,
+      "pue_std": 0.002576,
+      "violation_rate": 0.0,
+      "violation_rate_std": 0.0,
+      "emissions_kg": 6.59377,
+      "emissions_kg_std": 2.429903,
+      "reward": -43.193939,
+      "reward_std": 4.580341,
+      "cost": 0.0,
+      "cost_std": 0.0,
+      "violations": 0.0,
+      "violations_std": 0.0,
+      "it_kwh": 409275.15682,
+      "it_kwh_std": 66203.501869
+    },
+    "GL36_Rule": {
+      "cooling_kwh": 20622.160355,
+      "cooling_kwh_std": 4011.805437,
+      "pue": 1.049926,
+      "pue_std": 0.004259,
+      "violation_rate": 0.000231,
+      "violation_rate_std": 0.001268,
+      "emissions_kg": 6.349222,
+      "emissions_kg_std": 2.389195,
+      "reward": -41.631543,
+      "reward_std": 5.547301,
+      "cost": 0.016497,
+      "cost_std": 0.090359,
+      "violations": 0.033333,
+      "violations_std": 0.182574,
+      "it_kwh": 409275.15682,
+      "it_kwh_std": 66203.501869
+    }
+  },
+  "Safe_PPO_all_seeds": {
+    "n_seeds": 5,
+    "cooling_reduction_vs_gl36_pct": {
+      "mean": 2.464,
+      "std": 6.622,
+      "min": -6.248,
+      "max": 10.757
+    },
+    "violation_rate": {
+      "mean": 0.036944,
+      "max": 0.061574
+    },
+    "per_seed": {
+      "0": {
+        "cooling_kwh": 18348.233249,
+        "cooling_kwh_std": 3370.100176,
+        "pue": 1.044522,
+        "pue_std": 0.001552,
+        "violation_rate": 0.061574,
+        "violation_rate_std": 0.127656,
+        "emissions_kg": 5.647601,
+        "emissions_kg_std": 2.105557,
+        "reward": -275.441627,
+        "reward_std": 718.089363,
+        "cost": 15.90419,
+        "cost_std": 47.830744,
+        "violations": 8.866667,
+        "violations_std": 18.3824,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -81232.553,
+        "reduction_vs_gl36": {
+          "mean_pct": 10.757,
+          "ci95_pct": [
+            8.839,
+            12.692
+          ]
+        }
+      },
+      "1": {
+        "cooling_kwh": 21786.481064,
+        "cooling_kwh_std": 3553.736286,
+        "pue": 1.053293,
+        "pue_std": 0.00327,
+        "violation_rate": 0.007639,
+        "violation_rate_std": 0.031395,
+        "emissions_kg": 6.699144,
+        "emissions_kg_std": 2.410051,
+        "reward": -56.713297,
+        "reward_std": 53.049179,
+        "cost": 0.845275,
+        "cost_std": 3.414613,
+        "violations": 1.1,
+        "violations_std": 4.520833,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -18961.149,
+        "reduction_vs_gl36": {
+          "mean_pct": -6.248,
+          "ci95_pct": [
+            -7.72,
+            -4.832
+          ]
+        }
+      },
+      "2": {
+        "cooling_kwh": 19873.10796,
+        "cooling_kwh_std": 4148.405854,
+        "pue": 1.047918,
+        "pue_std": 0.003565,
+        "violation_rate": 0.000231,
+        "violation_rate_std": 0.001268,
+        "emissions_kg": 6.112752,
+        "emissions_kg_std": 2.347656,
+        "reward": -40.001924,
+        "reward_std": 5.370411,
+        "cost": 0.016529,
+        "cost_std": 0.090534,
+        "violations": 0.033333,
+        "violations_std": 0.182574,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -16335.896,
+        "reduction_vs_gl36": {
+          "mean_pct": 3.843,
+          "ci95_pct": [
+            2.362,
+            5.318
+          ]
+        }
+      },
+      "3": {
+        "cooling_kwh": 20900.926177,
+        "cooling_kwh_std": 3654.921399,
+        "pue": 1.050882,
+        "pue_std": 0.001907,
+        "violation_rate": 0.056019,
+        "violation_rate_std": 0.126415,
+        "emissions_kg": 6.442087,
+        "emissions_kg_std": 2.399847,
+        "reward": -300.758303,
+        "reward_std": 730.323736,
+        "cost": 17.242207,
+        "cost_std": 48.63774,
+        "violations": 8.066667,
+        "violations_std": 18.203701,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -44116.014,
+        "reduction_vs_gl36": {
+          "mean_pct": -1.784,
+          "ci95_pct": [
+            -3.842,
+            0.341
+          ]
+        }
+      },
+      "4": {
+        "cooling_kwh": 19349.850798,
+        "cooling_kwh_std": 3351.141024,
+        "pue": 1.047103,
+        "pue_std": 0.001678,
+        "violation_rate": 0.059259,
+        "violation_rate_std": 0.128331,
+        "emissions_kg": 5.958471,
+        "emissions_kg_std": 2.194384,
+        "reward": -273.893994,
+        "reward_std": 710.30734,
+        "cost": 15.660451,
+        "cost_std": 47.307189,
+        "violations": 8.533333,
+        "violations_std": 18.479688,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -82290.896,
+        "reduction_vs_gl36": {
+          "mean_pct": 5.751,
+          "ci95_pct": [
+            4.001,
+            7.522
+          ]
+        }
+      }
+    }
+  },
+  "PPO_Unconstrained_all_seeds": {
+    "n_seeds": 5,
+    "cooling_reduction_vs_gl36_pct": {
+      "mean": 3.137,
+      "std": 4.344,
+      "min": -3.46,
+      "max": 8.16
+    },
+    "violation_rate": {
+      "mean": 0.056898,
+      "max": 0.103009
+    },
+    "per_seed": {
+      "0": {
+        "cooling_kwh": 18967.196023,
+        "cooling_kwh_std": 3911.359218,
+        "pue": 1.0458,
+        "pue_std": 0.003081,
+        "violation_rate": 0.0,
+        "violation_rate_std": 0.0,
+        "emissions_kg": 5.852315,
+        "emissions_kg_std": 2.295535,
+        "reward": -38.014153,
+        "reward_std": 4.999429,
+        "cost": 0.0,
+        "cost_std": 0.0,
+        "violations": 0.0,
+        "violations_std": 0.0,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -15537.823,
+        "reduction_vs_gl36": {
+          "mean_pct": 8.16,
+          "ci95_pct": [
+            6.618,
+            9.707
+          ]
+        }
+      },
+      "1": {
+        "cooling_kwh": 19590.20512,
+        "cooling_kwh_std": 3330.18202,
+        "pue": 1.047739,
+        "pue_std": 0.001669,
+        "violation_rate": 0.062037,
+        "violation_rate_std": 0.131394,
+        "emissions_kg": 6.028415,
+        "emissions_kg_std": 2.19881,
+        "reward": -279.544065,
+        "reward_std": 718.898852,
+        "cost": 16.003319,
+        "cost_std": 47.886521,
+        "violations": 8.933333,
+        "violations_std": 18.920766,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -82543.019,
+        "reduction_vs_gl36": {
+          "mean_pct": 4.511,
+          "ci95_pct": [
+            2.688,
+            6.374
+          ]
+        }
+      },
+      "2": {
+        "cooling_kwh": 21143.870068,
+        "cooling_kwh_std": 3066.811644,
+        "pue": 1.051923,
+        "pue_std": 0.00246,
+        "violation_rate": 0.103009,
+        "violation_rate_std": 0.169536,
+        "emissions_kg": 6.521756,
+        "emissions_kg_std": 2.343458,
+        "reward": -409.217027,
+        "reward_std": 883.104181,
+        "cost": 24.421593,
+        "cost_std": 58.828115,
+        "violations": 14.833333,
+        "violations_std": 24.413229,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -139251.325,
+        "reduction_vs_gl36": {
+          "mean_pct": -3.46,
+          "ci95_pct": [
+            -5.401,
+            -1.361
+          ]
+        }
+      },
+      "3": {
+        "cooling_kwh": 20141.080087,
+        "cooling_kwh_std": 3197.06841,
+        "pue": 1.049318,
+        "pue_std": 0.004017,
+        "violation_rate": 0.05625,
+        "violation_rate_std": 0.124618,
+        "emissions_kg": 6.210141,
+        "emissions_kg_std": 2.239342,
+        "reward": -269.760916,
+        "reward_std": 703.3704,
+        "cost": 15.266128,
+        "cost_std": 46.801298,
+        "violations": 8.1,
+        "violations_std": 17.945031,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -83545.525,
+        "reduction_vs_gl36": {
+          "mean_pct": 1.681,
+          "ci95_pct": [
+            0.259,
+            3.138
+          ]
+        }
+      },
+      "4": {
+        "cooling_kwh": 19535.022189,
+        "cooling_kwh_std": 3323.744648,
+        "pue": 1.047597,
+        "pue_std": 0.001644,
+        "violation_rate": 0.063194,
+        "violation_rate_std": 0.127898,
+        "emissions_kg": 6.027975,
+        "emissions_kg_std": 2.245283,
+        "reward": -273.160596,
+        "reward_std": 700.792917,
+        "cost": 15.583458,
+        "cost_std": 46.675841,
+        "violations": 9.1,
+        "violations_std": 18.417289,
+        "it_kwh": 409275.15682,
+        "it_kwh_std": 66203.501869,
+        "select_score": -82465.717,
+        "reduction_vs_gl36": {
+          "mean_pct": 4.791,
+          "ci95_pct": [
+            2.964,
+            6.652
+          ]
+        }
+      }
+    }
+  },
+  "selected_safe_ppo": {
+    "seed": 2,
+    "cooling_kwh": 19873.10796,
+    "cooling_kwh_std": 4148.405854,
+    "pue": 1.047918,
+    "pue_std": 0.003565,
+    "violation_rate": 0.000231,
+    "violation_rate_std": 0.001268,
+    "emissions_kg": 6.112752,
+    "emissions_kg_std": 2.347656,
+    "reward": -40.001924,
+    "reward_std": 5.370411,
+    "cost": 0.016529,
+    "cost_std": 0.090534,
+    "violations": 0.033333,
+    "violations_std": 0.182574,
+    "it_kwh": 409275.15682,
+    "it_kwh_std": 66203.501869,
+    "reduction_vs_gl36": {
+      "mean_pct": 3.843,
+      "ci95_pct": [
+        2.362,
+        5.318
+      ]
+    },
+    "reduction_vs_pid": {
+      "mean_pct": 7.635,
+      "ci95_pct": [
+        6.103,
+        9.123
+      ]
+    },
+    "reduction_vs_constant": {
+      "mean_pct": 9.137,
+      "ci95_pct": [
+        7.546,
+        10.703
+      ]
+    }
+  },
+  "Safe_PPO_selected": {
+    "reward": -40.001924,
+    "cost": 0.016529,
+    "pue": 1.047918,
+    "violations": 0.033333,
+    "violation_rate": 0.000231,
+    "cooling_kwh": 19873.10796
+  },
   "Safe_PPO": {
-    "reward": -512.7225500875284,
-    "cost": 31.315582275390625,
-    "pue": 1.047975265317493,
-    "violations": 35.0
+    "reward": -40.001924,
+    "cost": 0.016529,
+    "pue": 1.047918,
+    "violations": 0.033333,
+    "violation_rate": 0.000231,
+    "cooling_kwh": 19873.10796
   },
   "ASHRAE_Rule": {
-    "reward": -654.5511934409917,
-    "cost": 40.73356914520264,
-    "pue": 1.0526247850722736,
-    "violations": 25.8
+    "reward": -309.578186,
+    "cost": 17.712048,
+    "pue": 1.05306,
+    "violations": 11.533333,
+    "violation_rate": 0.080093,
+    "cooling_kwh": 21717.502843
   },
   "PID_Feedback": {
-    "reward": -44.7532333771714,
+    "reward": -43.193939,
     "cost": 0.0,
-    "pue": 1.0523886109391847,
-    "violations": 0.0
+    "pue": 1.052209,
+    "violations": 0.0,
+    "violation_rate": 0.0,
+    "cooling_kwh": 21367.728478
+  },
+  "GL36_Rule": {
+    "reward": -41.631543,
+    "cost": 0.016497,
+    "pue": 1.049926,
+    "violations": 0.033333,
+    "violation_rate": 0.000231,
+    "cooling_kwh": 20622.160355
   }
 }
