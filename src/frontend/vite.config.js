@@ -20,5 +20,11 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        // The 3D library is large and rarely changes; its own chunk keeps it cached across dashboard updates.
+        manualChunks: { three: ['three'] },
+      },
+    },
   },
 });

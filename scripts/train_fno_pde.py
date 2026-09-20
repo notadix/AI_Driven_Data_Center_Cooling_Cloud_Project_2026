@@ -88,7 +88,7 @@ def main() -> None:
     ny = lambda Y: (Y - lo_y) / (hi_y - lo_y + 1e-6)
     tX, tY = torch.tensor(nx(Xtr)), torch.tensor(ny(Ytr))
     vX, vY = torch.tensor(nx(Xva)), torch.tensor(ny(Yva))
-    sX, sY = torch.tensor(nx(Xte)), torch.tensor(ny(Yte))
+    sX = torch.tensor(nx(Xte))
 
     model = FNO2d(in_channels=3, out_channels=1, modes1=4, modes2=4, width=32, num_layers=4)
     opt = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=1e-4)

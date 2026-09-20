@@ -80,9 +80,10 @@ export default function SHAPExplanation({
             dynamicRationale = `Safe-PPO policy ramped actuator capacity driven predominantly by ${topPos.feature} (+${topPos.value.toFixed(2)}).`;
           }
           setRationale(dynamicRationale);
-        } else if (json.status === 'unavailable') {
+        } else {
+          // 'unavailable' (no checkpoint / incomplete telemetry) or any unexpected shape: never spin forever.
           setAvailable(false);
-          setError(json.reason || 'Safe-PPO checkpoint not loaded');
+          setError(json.reason || 'Explanation unavailable');
           setLoading(false);
         }
       } catch (err) {

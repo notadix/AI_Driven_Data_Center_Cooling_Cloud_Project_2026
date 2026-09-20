@@ -7,6 +7,7 @@ import SHAPExplanation from '../components/SHAPExplanation';
 import OperatorControlPanel from '../components/OperatorControlPanel';
 import CarbonSchedule from '../components/CarbonSchedule';
 import ForecastPanel from '../components/ForecastPanel';
+import { carbonBand, coolingSharePct as coolingShare, pueVsTargetPct, slaOkPct as slaShare } from '../utils/rackGrid';
 import {
   Activity,
   Server,
@@ -32,12 +33,18 @@ const FACILITY_REGIONS = {
 export default function Dashboard() {
   const [selectedFacility, setSelectedFacility] = useState('DC-EAST-01');
   const [selectedRack, setSelectedRack] = useState(null);
+  // The cooling unit that the controls, the AI explanation and the forecast all refer to. Clicking a rack
+  // selects that rack's unit; the control tabs change it too, so the panels never disagree.
+  const [selectedCrac, setSelectedCrac] = useState('CRAC-01');
   // Stable identity: ThreeDHeatmap's WebGL scene-setup effect depends on
   // this callback, so a fresh inline arrow function here (recreated every
   // Dashboard re-render, which happens on every telemetry tick) would tear
   // down and rebuild the entire Three.js renderer/scene each time --
   // exhausting the browser's WebGL context limit within seconds.
-  const handleSelectRack = useCallback((rack) => setSelectedRack(rack), []);
+  const handleSelectRack = useCallback((rack) => {
+    setSelectedRack(rack);
+    if (rack && rack.crac_id) setSelectedCrac(rack.crac_id);
+  }, []);
 
   const {
     connected,
@@ -63,10 +70,8 @@ export default function Dashboard() {
       : 0;
 
   // Live SLA compliance: share of racks whose inlet is inside the ASHRAE envelope right now.
-  const slaOkPct = spatialGrid.length
-    ? (100 * spatialGrid.filter((n) => n.ashrae_status === 'NORMAL').length) / spatialGrid.length
-    : null;
-  const pueVsTargetPct = ((telemetry.pue - 1.15) / 1.15) * 100;
+  const slaOkPct = slaShare(spatialGrid);
+  const pueDeltaPct = pueVsTargetPct(telemetry.pue);
 
   const itPowerMw = (telemetry.it_power_kw / 1000.0).toFixed(2);
   const coolingPowerMw = (telemetry.cooling_power_kw / 1000.0).toFixed(2);
@@ -74,12 +79,9 @@ export default function Dashboard() {
   const deltaT = (telemetry.return_temp_c - telemetry.fws_supply_temp_c).toFixed(1);
   // Same bands as the Green Grid Carbon Tracker (gCO2/kWh).
   const carbonNow = telemetry.carbon_gco2_kwh || 285;
-  const carbonBand =
-    carbonNow < 180 ? { label: 'Ultra clean grid', cls: 'text-emerald-400' }
-    : carbonNow < 300 ? { label: 'Clean grid', cls: 'text-cyan-400' }
-    : carbonNow < 420 ? { label: 'Moderate grid', cls: 'text-amber-400' }
-    : { label: 'Dirty grid', cls: 'text-red-400' };
-  const coolingSharePct = ((100 * telemetry.cooling_power_kw) / Math.max(1, telemetry.it_power_kw + telemetry.cooling_power_kw)).toFixed(1);
+  const band = carbonBand(carbonNow);
+  const bandClass = { ultra: 'text-emerald-400', clean: 'text-cyan-400', moderate: 'text-amber-400', dirty: 'text-red-400' }[band.tone];
+  const coolingSharePct = coolingShare(telemetry.it_power_kw, telemetry.cooling_power_kw).toFixed(1);
   const racksOutside = spatialGrid.filter((n) => n.ashrae_status !== 'NORMAL').length;
 
   return (
@@ -106,9 +108,9 @@ export default function Dashboard() {
         </div>
 
         {/* Facility Selector & Live Status */}
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
           {/* Facility Dropdown */}
-          <div className="flex items-center space-x-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+          <div className="flex items-center space-x-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs max-w-full">
             <Building2 className="w-3.5 h-3.5 text-cyan-400" />
             <select
               value={selectedFacility}
@@ -116,7 +118,7 @@ export default function Dashboard() {
                 setSelectedFacility(e.target.value);
                 setSelectedRack(null); // a rack from the previous facility must not stay selected
               }}
-              className="bg-transparent text-slate-200 font-mono outline-none cursor-pointer"
+              className="bg-transparent text-slate-200 font-mono outline-none cursor-pointer min-w-0 max-w-[12.5rem] sm:max-w-none truncate"
             >
               <option value="DC-EAST-01">DC-EAST-01 (US-East / Chilled Water + Free-Air)</option>
               <option value="DC-WEST-02">DC-WEST-02 (US-West / Evaporative Hybrid)</option>
@@ -152,8 +154,8 @@ export default function Dashboard() {
             <div className="text-2xl font-black font-mono text-slate-100">
               {telemetry.pue?.toFixed(3)}
             </div>
-            <span className={`text-[10px] font-medium ${pueVsTargetPct <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              Target: 1.150 ({pueVsTargetPct <= 0 ? '' : '+'}{pueVsTargetPct.toFixed(1)}%)
+            <span className={`text-[10px] font-medium ${pueDeltaPct <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+              Target: 1.150 ({pueDeltaPct <= 0 ? '' : '+'}{pueDeltaPct.toFixed(1)}%)
             </span>
           </div>
         </div>
@@ -226,7 +228,7 @@ export default function Dashboard() {
             <div className="text-2xl font-black font-mono text-slate-100">
               {Math.round(telemetry.carbon_gco2_kwh || 285)} <span className="text-xs font-normal text-slate-400">g/kWh</span>
             </div>
-            <span className={`text-[10px] font-medium ${carbonBand.cls}`}>{carbonBand.label}</span>
+            <span className={`text-[10px] font-medium ${bandClass}`}>{band.label}</span>
           </div>
         </div>
       </section>
@@ -320,17 +322,19 @@ export default function Dashboard() {
         <CarbonSchedule facilityId={selectedFacility} />
 
         {/* Predictive layer: load forecast + FNO thermal surrogate */}
-        <ForecastPanel facilityId={selectedFacility} cracId={selectedRack?.crac_id || 'CRAC-01'} />
+        <ForecastPanel facilityId={selectedFacility} cracId={selectedCrac} />
 
         {/* Explainable AI (SHAP) Waterfall */}
         <SHAPExplanation
           facilityId={selectedFacility}
-          cracId={selectedRack?.crac_id || 'CRAC-01'}
+          cracId={selectedCrac}
         />
 
         {/* Supervisory Control Panel */}
         <OperatorControlPanel
           facilityId={selectedFacility}
+          selectedCrac={selectedCrac}
+          onSelectCrac={setSelectedCrac}
           onModeChange={setControlMode}
           onSubmitAction={submitControlAction}
           telemetry={telemetry}

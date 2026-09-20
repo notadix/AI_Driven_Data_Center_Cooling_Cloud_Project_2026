@@ -44,6 +44,23 @@ def _safe_round(v, n=4):
         return v
 
 
+def _ashrae_status(inlet_c) -> str:
+    """Same classification the WebSocket stream applies (src/backend/websockets/stream.py)."""
+    inlet = float(inlet_c)
+    if inlet >= 32.0:
+        return "CRITICAL"
+    if inlet > 27.0 or inlet < 18.0:
+        return "SLA_BREACH"
+    return "NORMAL"
+
+
+def _with_status(payload: dict, topic: str) -> dict:
+    rec = {**payload, "topic": topic}
+    if "ashrae_status" not in rec and rec.get("server_inlet_temp_c") is not None:
+        rec["ashrae_status"] = _ashrae_status(rec["server_inlet_temp_c"])
+    return rec
+
+
 def _require_known_facility(facility_id: str, has_data: bool) -> None:
     """404 for a facility that neither has data nor exists in the simulator
     topology (so a typo'd facility_id doesn't silently return an empty 200)."""
@@ -64,10 +81,7 @@ async def get_latest_all() -> JSONResponse:
     latest = sim.get_latest_telemetry()
     return _ok({
         "count": len(latest),
-        "records": [
-            {**payload, "topic": topic}
-            for topic, payload in latest.items()
-        ],
+        "records": [_with_status(payload, topic) for topic, payload in latest.items()],
     })
 
 
@@ -80,7 +94,7 @@ async def get_latest_facility(facility_id: str = Path(..., pattern=_ID_PATTERN))
     sim = get_simulator()
     latest = sim.get_latest_telemetry()
     records = [
-        {**payload, "topic": topic}
+        _with_status(payload, topic)
         for topic, payload in latest.items()
         if payload.get("facility_id") == facility_id
     ]
@@ -151,12 +165,7 @@ async def get_spatial(facility_id: str = Path(..., pattern=_ID_PATTERN)) -> JSON
         inlet = rec.get("server_inlet_temp_c")
         if inlet is not None:
             inlet = float(inlet)
-            if inlet >= 32.0:
-                status = "CRITICAL"
-            elif inlet > 27.0 or inlet < 18.0:
-                status = "SLA_BREACH"
-            else:
-                status = "NORMAL"
+            status = _ashrae_status(inlet)
             nodes.append({
                 "crac_id": rec.get("crac_id"),
                 "rack_id": rec.get("rack_id"),
@@ -173,12 +182,7 @@ async def get_spatial(facility_id: str = Path(..., pattern=_ID_PATTERN)) -> JSON
             if payload.get("facility_id") != facility_id:
                 continue
             inlet = float(payload.get("server_inlet_temp_c", 22.5))
-            if inlet >= 32.0:
-                status = "CRITICAL"
-            elif inlet > 27.0 or inlet < 18.0:
-                status = "SLA_BREACH"
-            else:
-                status = "NORMAL"
+            status = _ashrae_status(inlet)
             nodes.append({
                 "crac_id": payload.get("crac_id"),
                 "rack_id": payload.get("rack_id"),

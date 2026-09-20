@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE, WS_BASE, ZONE_SCALE } from '../config';
+import { generateInitialGrid, applyInletToGrid, facilityAggregate, alarmDecision } from '../utils/rackGrid';
 
 /**
  * Resilient custom React hook for high-frequency telemetry streaming.
@@ -71,32 +72,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
   // warning once telemetry actually started streaming after the connect
   // loop fix above).
   const alarmIdCounter = useRef(0);
-
-  // Generate initial 8x8 matrix (64 racks: RACK-A01 to H08)
-  function generateInitialGrid() {
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    const grid = [];
-    for (let r = 0; r < 8; r++) {
-      for (let c = 1; c <= 8; c++) {
-        const rowId = rows[r];
-        const colId = c < 10 ? `0${c}` : `${c}`;
-        const rackId = `RACK-${rowId}${colId}`;
-        // Base nominal temp around 21 - 24°C with slight gradient
-        const baseTemp = 21.0 + (r * 0.4) + (c * 0.2);
-        grid.push({
-          rack_id: rackId,
-          row: r,
-          col: c - 1,
-          temp_c: Number(baseTemp.toFixed(1)),
-          offset_c: Number((r * 0.15 + (c - 1) * 0.1).toFixed(2)),
-          power_kw: Number((22.0 + Math.random() * 8.0).toFixed(1)),
-          ashrae_status: baseTemp > 27.0 ? 'SLA_BREACH' : 'NORMAL',
-          crac_id: r < 4 ? (c <= 4 ? 'CRAC-01' : 'CRAC-03') : (c <= 4 ? 'CRAC-02' : 'CRAC-04'),
-        });
-      }
-    }
-    return grid;
-  }
+  const alarmStateRef = useRef({});   // per cooling unit: last breach state, so a persistent breach is not logged every second
 
   // Connect WebSocket
   const connectWs = useCallback(() => {
@@ -143,13 +119,10 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
                 [p.crac_id]: { it_mw: p.it_power_mw, cooling_mw: p.cooling_power_mw },
               };
             }
-            const readings = Object.values(cracPowerRef.current);
-            // Hall-scale figures, same convention as the backend (forecast, carbon plan, controller): the mean
-            // representative-rack reading times ZONE_SCALE. Summing the four raw readings (~0.08 MW) understated
-            // the load ~250x and disagreed with the forecast panel.
-            const nZones = Math.max(1, readings.length);
-            const totalItMw = (readings.reduce((s, r) => s + r.it_mw, 0) / nZones) * ZONE_SCALE;
-            const totalCoolingMw = (readings.reduce((s, r) => s + r.cooling_mw, 0) / nZones) * ZONE_SCALE;
+            const agg = facilityAggregate(
+              Object.values(cracPowerRef.current).map((r) => ({ it_power_mw: r.it_mw, cooling_power_mw: r.cooling_mw })),
+              ZONE_SCALE,
+            );
 
             setTelemetry((prev) => ({
               ...prev,
@@ -161,9 +134,9 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               pump_speed_pct: p.pump_speed_pct ?? prev.pump_speed_pct,
               fan_speed_pct: p.fan_speed_pct ?? prev.fan_speed_pct,
               valve_split_pct: p.valve_split_pct ?? prev.valve_split_pct,
-              it_power_kw: readings.length > 0 ? totalItMw * 1000.0 : prev.it_power_kw,
-              cooling_power_kw: readings.length > 0 ? totalCoolingMw * 1000.0 : prev.cooling_power_kw,
-              pue: readings.length > 0 && totalItMw > 0 ? Number(((totalItMw + totalCoolingMw) / totalItMw).toFixed(4)) : (p.pue ?? prev.pue),
+              it_power_kw: agg ? agg.itKw : prev.it_power_kw,
+              cooling_power_kw: agg ? agg.coolingKw : prev.cooling_power_kw,
+              pue: agg && agg.pue != null ? agg.pue : (p.pue ?? prev.pue),
               wue: p.wue ?? prev.wue,
               carbon_gco2_kwh: p.grid_carbon_gco2_kwh ?? prev.carbon_gco2_kwh,
               ashrae_status: p.ashrae_status ?? prev.ashrae_status,
@@ -174,28 +147,20 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
             // fixed positional offset (per-rack spatial variation within a
             // CRAC zone is illustrative; only the CRAC-level reading is live).
             if (p.crac_id && p.server_inlet_temp_c != null) {
-              const inlet = Number(p.server_inlet_temp_c);
-              setSpatialGrid((prevGrid) =>
-                prevGrid.map((node) => {
-                  if (node.crac_id !== p.crac_id) return node;
-                  const temp = inlet + (node.offset_c ?? 0);
-                  return {
-                    ...node,
-                    temp_c: Number(temp.toFixed(1)),
-                    ashrae_status: temp >= 32.0 ? 'CRITICAL' : (temp > 27.0 || temp < 18.0 ? 'SLA_BREACH' : 'NORMAL'),
-                  };
-                })
-              );
+              setSpatialGrid((prevGrid) => applyInletToGrid(prevGrid, p.crac_id, p.server_inlet_temp_c));
             }
 
-            // Check for SLA breach alarm
-            if (p.ashrae_status === 'CRITICAL' || p.ashrae_status === 'SLA_BREACH') {
+            // SLA breach alarm: once when a unit enters a breach, again every 30 s while it lasts.
+            const unitKey = p.crac_id || 'unit';
+            const decision = alarmDecision(alarmStateRef.current[unitKey], p.ashrae_status, Date.now());
+            alarmStateRef.current[unitKey] = decision.next;
+            if (decision.raise) {
               setAlarms((prev) => [
                 {
                   id: `${Date.now()}-${alarmIdCounter.current++}`,
                   timestamp: new Date().toLocaleTimeString(),
                   severity: p.ashrae_status,
-                  message: `${p.rack_id || 'Rack'}: Inlet temp ${p.server_inlet_temp_c?.toFixed(1)}°C outside ASHRAE SLA envelope`,
+                  message: `${p.crac_id || 'Unit'} zone: inlet ${Number(p.server_inlet_temp_c).toFixed(1)}°C outside the ASHRAE SLA envelope (18 to 27°C)`,
                 },
                 ...prev.slice(0, 9),
               ]);
@@ -235,6 +200,7 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
     // Drop any accumulated per-CRAC power readings from the previous
     // facility so its stale numbers can't leak into this one's aggregate.
     cracPowerRef.current = {};
+    alarmStateRef.current = {};
     setHasData(false);
     setAlarms([]);
     setSpatialGrid(generateInitialGrid());
@@ -249,13 +215,18 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
             setOffline(false);
             if (json.data && json.data.records && json.data.records.length > 0) {
               setHasData(true);
-              const rec = json.data.records[0];
+              const recs = json.data.records;
+              const rec = recs[0];
+              // Same facility aggregate as the WebSocket path: mean of the units x ZONE_SCALE.
+              const agg = facilityAggregate(recs, ZONE_SCALE);
               setTelemetry((prev) => ({
                 ...prev,
                 ...rec,
-                it_power_kw: rec.it_power_mw != null ? rec.it_power_mw * 1000.0 * ZONE_SCALE : prev.it_power_kw,
-                cooling_power_kw: rec.cooling_power_mw != null ? rec.cooling_power_mw * 1000.0 * ZONE_SCALE : prev.cooling_power_kw,
+                it_power_kw: agg ? agg.itKw : prev.it_power_kw,
+                cooling_power_kw: agg ? agg.coolingKw : prev.cooling_power_kw,
+                pue: agg && agg.pue != null ? agg.pue : (rec.pue ?? prev.pue),
               }));
+              setSpatialGrid((prevGrid) => recs.reduce((g, r) => applyInletToGrid(g, r.crac_id, r.server_inlet_temp_c), prevGrid));
             }
           }
         } catch {
@@ -312,9 +283,12 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       });
       return await res.json();
     } catch (e) {
-      // Local optimistic update
-      setTelemetry((prev) => ({ ...prev, ...actionPayload }));
-      return { status: 'ok', local: true };
+      if (demoMode) {   // ?demo=1 standalone preview only
+        setTelemetry((prev) => ({ ...prev, ...actionPayload }));
+        return { status: 'ok', local: true };
+      }
+      // Never report success for a command that did not reach the plant.
+      return { status: 'error', detail: 'Backend unreachable: the command was NOT sent.' };
     }
   };
 
@@ -333,8 +307,11 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
       }
       return data;
     } catch {
-      setTelemetry((prev) => ({ ...prev, mode }));
-      return { status: 'ok', mode };
+      if (demoMode) {
+        setTelemetry((prev) => ({ ...prev, mode }));
+        return { status: 'ok', mode };
+      }
+      return { status: 'error', detail: 'Backend unreachable: the mode was NOT changed.' };
     }
   };
 

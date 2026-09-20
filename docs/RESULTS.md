@@ -120,7 +120,7 @@ The forecaster is clearly better than the hourly-profile baseline and modestly b
 persistence from 30 minutes on (8% relative at 60 min); at 10 minutes persistence is as good.
 Frontier's load has almost no diurnal pattern (hourly mean varies by ≤ 9%), so there is little
 to learn beyond short-term momentum. Two other models on the same history were tried and are not better
-(60-minute MAPE: gradient boosting 9.04%, ridge 9.73%, GRU 8.66%; `results/load_forecast_alternatives.json`),
+(60-minute MAPE: gradient boosting 9.05%, ridge 9.73%, GRU 8.66%; `results/load_forecast_alternatives.json`),
 so the GRU is close to what this data allows. Live at `GET /api/v1/forecast/load/{facility}`.
 
 ## 3. Safe reinforcement learning (Objective 3)
@@ -325,10 +325,12 @@ anything on real AWS. A real-AWS free-tier deployment is the remaining phase.
 
 Live gradient×input attribution over the 10 observation features
 (`GET /api/v1/control/explain/{facility}/{crac}`, shown on the dashboard). Test suite:
-run `python -m pytest testing/` (346 pass without LocalStack; 10 more run and pass when a
-LocalStack container is up, 356 in total). Frontend: `npm run build` succeeds; the
-dashboard was exercised in a browser (three facilities, control panel, emergency override,
-carbon-schedule and predictive panels) with no console errors while the backend was up.
+run `python -m pytest testing/` (375 pass without LocalStack; 10 more run and pass when a
+LocalStack container is up, 385 in total). Frontend: `npm test` (10 unit tests) and `npm run build`
+succeed; the dashboard was exercised in a browser (three facilities, camera views, rack selection,
+control panel with the manual-command safety preview, emergency override, carbon-schedule and predictive
+panels, phone/tablet/desktop layouts, recovery after a backend outage) with no console errors. Details of
+the bug sweep and the stress, soak and edge-case runs are in `docs/FINAL_QA.md`.
 
 ## 8. Reproducing
 

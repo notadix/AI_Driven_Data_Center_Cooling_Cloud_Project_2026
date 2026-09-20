@@ -171,7 +171,6 @@ def load_real_frontier2023(xlsx_path: str, save_path: str = None) -> pd.DataFram
     raw[numeric_cols] = raw[numeric_cols].interpolate(method="linear", limit_direction="both")
 
     timestamps = pd.to_datetime(raw["Date/Time"])
-    n = len(raw)
     hod = timestamps.dt.hour + timestamps.dt.minute / 60.0
     doy = timestamps.dt.dayofyear
 

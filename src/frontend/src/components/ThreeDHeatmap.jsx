@@ -45,7 +45,8 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
+    // The container can be 0 px wide when this mounts (hidden tab / layout not ready): never size to 0.
+    const width = container.clientWidth || 800;
     const height = container.clientHeight || 520;
 
     // 1. Scene Setup
@@ -195,8 +196,8 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
     // 9. Mouse Raycasting Handler
     const handlePointerMove = (e) => {
       const rect = container.getBoundingClientRect();
-      mouseRef.current.x = ((e.clientX - rect.left) / width) * 2 - 1;
-      mouseRef.current.y = -((e.clientY - rect.top) / height) * 2 + 1;
+      mouseRef.current.x = ((e.clientX - rect.left) / (rect.width || 1)) * 2 - 1;
+      mouseRef.current.y = -((e.clientY - rect.top) / (rect.height || 1)) * 2 + 1;
 
       raycasterRef.current.setFromCamera(mouseRef.current, camera);
       const intersects = raycasterRef.current.intersectObjects(rackGroup.children);
@@ -215,8 +216,8 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
 
     const handleClick = (e) => {
       const rect = container.getBoundingClientRect();
-      mouseRef.current.x = ((e.clientX - rect.left) / width) * 2 - 1;
-      mouseRef.current.y = -((e.clientY - rect.top) / height) * 2 + 1;
+      mouseRef.current.x = ((e.clientX - rect.left) / (rect.width || 1)) * 2 - 1;
+      mouseRef.current.y = -((e.clientY - rect.top) / (rect.height || 1)) * 2 + 1;
 
       raycasterRef.current.setFromCamera(mouseRef.current, camera);
       const intersects = raycasterRef.current.intersectObjects(rackGroup.children);
@@ -252,10 +253,15 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
       if (!container) return;
       const w = container.clientWidth;
       const h = container.clientHeight || 520;
+      if (w <= 0) return;                       // not laid out yet; the observer fires again when it is
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
+    // Watch the container itself (not just the window) so layout changes, a hidden tab becoming visible or a
+    // sidebar toggling keep the renderer size and the mouse picking correct.
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
+    if (resizeObserver) resizeObserver.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
@@ -263,7 +269,20 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
       container.removeEventListener('pointermove', handlePointerMove);
       container.removeEventListener('click', handleClick);
       window.removeEventListener('resize', handleResize);
+      if (resizeObserver) resizeObserver.disconnect();
+      // Free GPU memory and release the WebGL context (browsers cap the number of live contexts).
+      scene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach((m) => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        }
+      });
+      rackMeshesRef.current.clear();
       renderer.dispose();
+      renderer.forceContextLoss();
       container.innerHTML = '';
     };
   }, [onSelectRack]);
@@ -320,8 +339,8 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
       <div ref={mountRef} className="w-full h-full" />
 
       {/* Top HUD Controls Overlay */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center space-x-3 pointer-events-auto bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-800/80 text-xs">
+      <div className="absolute top-4 left-4 right-4 flex flex-wrap items-start justify-between gap-2 pointer-events-none">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pointer-events-auto bg-slate-950/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-slate-800/80 text-xs">
           <Layers className="w-4 h-4 text-cyan-400" />
           <span className="font-semibold text-slate-200">8×8 SPATIAL TWIN</span>
           <span className="text-slate-500">|</span>
@@ -331,7 +350,7 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
         </div>
 
         {/* Camera View Switcher */}
-        <div className="flex items-center space-x-1.5 pointer-events-auto bg-slate-950/80 backdrop-blur-md p-1 rounded-xl border border-slate-800 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-slate-950/80 backdrop-blur-md p-1 rounded-xl border border-slate-800 text-xs">
           <button
             onClick={() => applyCameraPreset('iso')}
             className={`px-2.5 py-1 rounded-lg transition-all ${
@@ -392,14 +411,14 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
       )}
 
       {/* Bottom Thermal Colormap Legend Bar */}
-      <div className="absolute bottom-4 left-4 right-4 pointer-events-auto bg-slate-950/85 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-800/90 flex items-center justify-between text-xs">
+      <div className="absolute bottom-4 left-4 right-4 pointer-events-auto bg-slate-950/85 backdrop-blur-md px-4 py-2 rounded-xl border border-slate-800/90 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs">
         <div className="flex items-center space-x-2">
           <Thermometer className="w-4 h-4 text-cyan-400" />
           <span className="text-slate-400 font-medium">ASHRAE TC 9.9 Thermal Spectrum:</span>
         </div>
 
         {/* Gradient Legend Track */}
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div className="flex items-center space-x-1">
             <span className="w-2.5 h-2.5 rounded-full bg-[#00BFFF]" />
             <span className="text-slate-400 text-[11px]">&lt; 18°C (Cold)</span>

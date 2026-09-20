@@ -18,9 +18,10 @@ import logging
 import os
 import re
 import time
+import threading
 from collections import deque
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import boto3
 from botocore.exceptions import ClientError, BotoCoreError
@@ -66,10 +67,20 @@ class InMemoryTimestreamStore:
 
     def __init__(self, maxlen: int = 50_000):
         self._records: deque = deque(maxlen=maxlen)
+        # The simulator thread appends while API handlers read. Iterating a deque that another thread
+        # is appending to raises "deque mutated during iteration" (seen as an intermittent HTTP 500),
+        # so writes take this lock and readers work from a snapshot taken under it.
+        self._lock = threading.Lock()
 
     def write(self, records: List[Dict]) -> None:
-        for r in records:
-            self._records.append(r)
+        with self._lock:
+            for r in records:
+                self._records.append(r)
+
+    def snapshot(self) -> List[Dict]:
+        """Consistent copy of the buffer, oldest first."""
+        with self._lock:
+            return list(self._records)
 
     def query_latest(
         self,
@@ -78,7 +89,7 @@ class InMemoryTimestreamStore:
         crac_id: Optional[str] = None,
         rack_id: Optional[str] = None,
     ) -> Optional[Dict]:
-        for r in reversed(self._records):
+        for r in reversed(self.snapshot()):
             if r.get("measure_name") != measure_name:
                 continue
             dims = r.get("dimensions", {})
@@ -101,7 +112,7 @@ class InMemoryTimestreamStore:
         limit: int = 1000,
     ) -> List[Dict]:
         results = []
-        for r in self._records:
+        for r in self.snapshot():
             ts = r.get("timestamp_dt")
             if ts is None:
                 continue
@@ -129,7 +140,7 @@ class InMemoryTimestreamStore:
     ) -> Optional[float]:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         vals = []
-        for r in self._records:
+        for r in self.snapshot():
             ts = r.get("timestamp_dt")
             if ts is None or ts < cutoff:
                 continue
@@ -145,7 +156,7 @@ class InMemoryTimestreamStore:
 
     def get_all_latest(self) -> Dict[str, Dict]:
         seen: Dict[str, Dict] = {}
-        for r in reversed(self._records):
+        for r in reversed(self.snapshot()):
             key = f"{r.get('dimensions', {}).get('facility_id')}:{r.get('dimensions', {}).get('crac_id')}"
             if key not in seen:
                 seen[key] = r
@@ -353,7 +364,7 @@ class TimestreamClient:
     def _local_sla_rate(self, facility_id: str, hours: int) -> float:
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         total, violations = 0, 0
-        for r in self._store._records:
+        for r in self._store.snapshot():
             ts = r.get("timestamp_dt")
             if ts is None or ts < cutoff:
                 continue

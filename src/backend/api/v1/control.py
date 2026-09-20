@@ -26,7 +26,7 @@ from fastapi import APIRouter, Body, HTTPException, Path
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, model_validator
 
-from src.aws.iot.iot_publisher import ControlPayload, get_simulator
+from src.aws.iot.iot_publisher import get_simulator
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -86,6 +86,12 @@ class SetpointOverride(BaseModel):
     valve_split_pct: float = Field(..., ge=0.0, le=100.0, description="Target valve split (%)")
 
 
+class SetpointPreview(BaseModel):
+    """What the operator is about to apply (all optional; missing fields keep the unit's current value)."""
+    delta_supply_c: float = Field(0.0, ge=-2.0, le=2.0)
+    valve_split_pct: Optional[float] = Field(None, ge=0.0, le=100.0)
+
+
 class ModeSwitch(BaseModel):
     mode: str = Field(..., pattern="^(auto|manual)$", description="'auto' (RL-driven) or 'manual'")
 
@@ -93,6 +99,32 @@ class ModeSwitch(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+SLA_MIN_C, SLA_MAX_C = 18.0, 27.0
+SHIELD_LO_C, SHIELD_HI_C = 18.5, 26.0
+
+
+def _predict_zone_inlet(state, delta_supply_c: float, valve_pct: Optional[float]) -> Dict[str, object]:
+    """Predict the zone inlet temperature a manual command would produce, and classify it.
+    Manual commands bypass the safety shield, so the operator is shown this before applying."""
+    from src.ai.rl.safety_shield import SafetyShield
+    from src.digital_twin.physics_dynamics import load_calibrated_constants
+
+    supply_after = min(24.0, max(14.0, state.supply_c + delta_supply_c))
+    valve = state.valve_split_pct if valve_pct is None else valve_pct
+    inlet = SafetyShield(load_calibrated_constants()).predict_inlet_direct(supply_after, state.ambient_c, valve)
+    if inlet > SLA_MAX_C or inlet < SLA_MIN_C:
+        level, detail = "breach", f"outside the {SLA_MIN_C:.0f} to {SLA_MAX_C:.0f} °C SLA"
+    elif inlet > SHIELD_HI_C or inlet < SHIELD_LO_C:
+        level, detail = "warning", f"inside the SLA but past the {SHIELD_LO_C} to {SHIELD_HI_C} °C band the safety shield keeps"
+    else:
+        level, detail = "ok", "inside the safe band"
+    return {
+        "predicted_inlet_c": round(float(inlet), 2), "supply_after_c": round(float(supply_after), 2),
+        "safety_level": level, "detail": detail, "message": f"Predicted zone inlet {inlet:.1f} °C is {detail}.",
+        "sla_band_c": [SLA_MIN_C, SLA_MAX_C], "shield_band_c": [SHIELD_LO_C, SHIELD_HI_C],
+    }
+
 
 def _ok(data) -> JSONResponse:
     return JSONResponse({"status": "ok", "data": data})
@@ -182,6 +214,9 @@ async def submit_action(
         control["valve_split_pct"] = action.valve_split_pct
 
     sim = get_simulator()
+    state_before = sim.get_simulator_state(facility_id, crac_id)
+    prediction = (_predict_zone_inlet(state_before, action.delta_supply_c, action.valve_split_pct)
+                  if state_before is not None else None)
     sim.apply_control_action(crac_id, control, facility_id=facility_id)
 
     record_action(
@@ -203,9 +238,27 @@ async def submit_action(
         "crac_id": crac_id,
         "applied": control,
         "mode": mode,
+        "prediction": prediction,
         "applied_at": _ts(),
         "message": f"Control action applied to '{crac_id}' in '{facility_id}' (source: {action.source})",
     })
+
+
+# ---------------------------------------------------------------------------
+# POST /preview/{facility_id}/{crac_id}  — predict a manual command's effect (read-only)
+# ---------------------------------------------------------------------------
+
+@router.post("/preview/{facility_id}/{crac_id}", summary="Predict the zone inlet a manual command would produce (does not apply it)")
+async def preview_action(
+    facility_id: str = Path(...),
+    crac_id: str = Path(...),
+    body: SetpointPreview = Body(...),
+) -> JSONResponse:
+    _validate_facility_crac(facility_id, crac_id)
+    state = get_simulator().get_simulator_state(facility_id, crac_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail=f"CRAC '{crac_id}' not found in simulator topology.")
+    return _ok({"facility_id": facility_id, "crac_id": crac_id, **_predict_zone_inlet(state, body.delta_supply_c, body.valve_split_pct)})
 
 
 # ---------------------------------------------------------------------------

@@ -27,7 +27,6 @@ Note on LocalStack Community vs Pro:
 """
 
 import argparse
-import json
 import logging
 import os
 import sys
@@ -180,7 +179,6 @@ def provision_state_machines(endpoint: str, sns_arn: str) -> dict:
                    has not yet landed) the test SM is silently skipped.
     """
     sfn = _client("stepfunctions", endpoint)
-    region = DEFAULT_REGION
     account = "000000000000"
     role_arn = f"arn:aws:iam::{account}:role/StepFunctionsRole"
     results = {}

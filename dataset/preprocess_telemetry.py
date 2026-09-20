@@ -121,7 +121,7 @@ def main():
                               "when --input doesn't exist yet.")
     args = parser.parse_args()
 
-    stats = process_and_save(args.input, args.output_dir, use_synthetic=args.synthetic)
+    process_and_save(args.input, args.output_dir, use_synthetic=args.synthetic)
 
     if args.verify:
         print("[*] Verifying saved tensors...")

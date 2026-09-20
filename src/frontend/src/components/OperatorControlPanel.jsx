@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sliders, ToggleLeft, ToggleRight, AlertOctagon, Check, RefreshCw, Lock, ShieldAlert } from 'lucide-react';
 import { API_BASE } from '../config';
 
@@ -7,8 +7,14 @@ export default function OperatorControlPanel({
   onModeChange,
   onSubmitAction,
   telemetry = {},
+  selectedCrac: selectedCracProp,
+  onSelectCrac,
 }) {
-  const [selectedCrac, setSelectedCrac] = useState('CRAC-01');
+  // Controlled by the dashboard when it passes selectedCrac (so the AI explanation and forecast follow the same
+  // unit); falls back to local state when used standalone.
+  const [localCrac, setLocalCrac] = useState('CRAC-01');
+  const selectedCrac = selectedCracProp ?? localCrac;
+  const setSelectedCrac = (id) => { setLocalCrac(id); if (onSelectCrac) onSelectCrac(id); };
   // The real mode for `selectedCrac`, fetched from the backend -- NOT
   // derived from a shared `telemetry.mode` flag. That value used to come
   // from the parent, but it's a single global optimistic flag with no
@@ -24,6 +30,10 @@ export default function OperatorControlPanel({
   const [submitting, setSubmitting] = useState(false);
   const [submittedFeedback, setSubmittedFeedback] = useState(null);
   const [feedbackError, setFeedbackError] = useState(false);
+  const feedbackTimer = useRef(null);
+  // Manual commands bypass the safety shield, so before Apply the backend predicts the zone inlet temperature the
+  // command would produce (POST /control/preview) and the panel warns when it is unsafe.
+  const [preview, setPreview] = useState(null);
 
   const isManual = actualMode === 'manual';
 
@@ -65,8 +75,34 @@ export default function OperatorControlPanel({
   const showFeedback = (text, error = false, ms = 3000) => {
     setFeedbackError(error);
     setSubmittedFeedback(text);
-    setTimeout(() => setSubmittedFeedback(null), ms);
+    // Cancel the previous message's timer, otherwise it clears this newer message early.
+    if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+    feedbackTimer.current = setTimeout(() => setSubmittedFeedback(null), ms);
   };
+
+  useEffect(() => () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current); }, []);
+
+  useEffect(() => {
+    if (!isManual) { setPreview(null); return undefined; }
+    let cancelled = false;
+    const id = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/control/preview/${facilityId}/${selectedCrac}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta_supply_c: Number(deltaSupply), valve_split_pct: Number(valveSplit) }),
+        });
+        const json = await res.json();
+        if (!cancelled) setPreview(res.ok && json.status === 'ok' ? json.data : null);
+      } catch {
+        if (!cancelled) setPreview(null);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [isManual, facilityId, selectedCrac, deltaSupply, valveSplit]);
+
+  const previewTone = { ok: 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10', warning: 'text-amber-300 border-amber-500/30 bg-amber-500/10', breach: 'text-red-300 border-red-500/40 bg-red-500/10' };
+  const needsConfirm = preview && preview.safety_level !== 'ok';
 
   const errorText = (res) =>
     typeof res?.detail === 'string' ? res.detail : 'Request rejected by the backend';
@@ -274,6 +310,13 @@ export default function OperatorControlPanel({
         </div>
       )}
 
+      {isManual && preview && (
+        <div className={`mt-3 text-[11px] rounded-lg border px-2.5 py-1.5 ${previewTone[preview.safety_level] || previewTone.ok}`}>
+          <span className="font-semibold">Predicted zone inlet after Apply: {preview.predicted_inlet_c.toFixed(1)} °C.</span>{' '}
+          {' '}It is {preview.detail}. Manual commands bypass the safety shield.
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="grid grid-cols-2 gap-2 mt-4">
         <button
@@ -286,7 +329,7 @@ export default function OperatorControlPanel({
           }`}
         >
           {submitting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-          <span>Apply Setpoints</span>
+          <span>{needsConfirm ? 'Apply anyway' : 'Apply Setpoints'}</span>
         </button>
 
         {/* Emergency Kill-Switch */}

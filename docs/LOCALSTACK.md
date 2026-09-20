@@ -197,7 +197,8 @@ aws --endpoint-url http://localhost:4566 stepfunctions start-execution \
 | `AWS_DEFAULT_REGION` | `us-east-1` | AWS region for all service clients. |
 | `IOT_TOPOLOGY` | *(see docker-compose.yml)* | JSON array of 12 CRAC entries with `facility_id`, `crac_id`, `rack_id`, `ambient_c`, `grid_carbon_gco2_kwh`. |
 | `IOT_PUBLISH_INTERVAL_S` | `1.0` | Seconds between IoT telemetry publishes. |
-| `CORS_ORIGINS` | `*` | Comma-separated CORS origins for the FastAPI backend. |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173` | Comma-separated CORS origins for the FastAPI backend (`*` allows any origin, without credentials). |
+| `SIM_DAY_STEPS` | `144` | Simulator steps per simulated day. At the default a day lasts 144 s (1 step = 10 simulated minutes); raise it (for example 1440) for a slower, calmer day. |
 
 ---
 
@@ -240,7 +241,7 @@ A: The Docker container is not running.  Run `docker compose up -d localstack` f
 
 **Q: Tests are skipped with "LocalStack not running"**  
 A: This is expected when LocalStack is not running.  Start it or accept the skips.  
-All skipped tests run in CI when LocalStack is available.
+They run and pass when LocalStack is up (385 pass, 0 skipped). The GitHub Actions workflow does not start LocalStack, so there they skip.
 
 **Q: `Timestream SKIPPED — not available on LocalStack Community`**  
 A: Expected.  This is a paid-tier service.  The backend in-memory telemetry store

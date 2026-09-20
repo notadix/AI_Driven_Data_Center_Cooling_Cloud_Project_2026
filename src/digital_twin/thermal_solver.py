@@ -24,7 +24,6 @@ n x n finite-volume grid (n a multiple of the 8x8 rack grid), sparse direct solv
 """
 
 import time
-from typing import Dict, Tuple
 
 import numpy as np
 import scipy.sparse as sp

@@ -33,7 +33,6 @@ import os
 import sys
 
 import numpy as np
-import torch
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 for p in (os.path.join(PROJECT_ROOT, "src", "digital_twin"), os.path.join(PROJECT_ROOT, "src", "ai", "rl"), PROJECT_ROOT,

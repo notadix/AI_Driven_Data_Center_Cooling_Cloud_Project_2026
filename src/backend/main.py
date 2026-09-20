@@ -12,10 +12,13 @@ Dual-mode: IoT Simulator starts automatically; AWS services are optional.
 """
 
 import logging
+import math
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -72,12 +75,32 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow all origins in development; restrict in production via env
-origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+def _json_safe(obj):
+    """Replace NaN / Infinity (not valid JSON) so an error report can always be serialised."""
+    if isinstance(obj, float) and not math.isfinite(obj):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    # FastAPI's default handler echoes the offending input; for a body containing NaN or Infinity that
+    # value cannot be JSON-encoded and the handler itself crashed with HTTP 500 instead of returning 422.
+    return JSONResponse(status_code=422, content={"detail": _json_safe(jsonable_encoder(exc.errors()))})
+
+
+# CORS — local dashboard origins by default; set CORS_ORIGINS (comma-separated, or *) to change
+_DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
+origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
+    # Browsers reject "*" together with credentials, so credentials are only allowed for an explicit list.
+    allow_credentials="*" not in origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -26,7 +26,6 @@ import time
 from typing import TYPE_CHECKING
 
 from prometheus_client import (
-    CONTENT_TYPE_LATEST,
     CollectorRegistry,
     Gauge,
     generate_latest,

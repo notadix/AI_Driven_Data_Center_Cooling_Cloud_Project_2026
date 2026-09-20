@@ -9,8 +9,6 @@
 #   prometheus — Metrics scraping for backend observability
 # =============================================================================
 
-version: "3.9"
-
 networks:
   cooling_net:
     driver: bridge
@@ -78,7 +76,8 @@ services:
       POSTGRES_PASSWORD: "cooling_secret"
 
       # CORS
-      CORS_ORIGINS: "*"
+      # Origins allowed to call the API from a browser (the dashboard dev server). Use "*" only for throwaway demos.
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
 
       # Drift detection thresholds
       DRIFT_THRESHOLD_PUE_MAE: "0.05"

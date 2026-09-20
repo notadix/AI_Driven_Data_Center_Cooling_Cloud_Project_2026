@@ -30,7 +30,6 @@ class MPCController:
 
     def __call__(self, obs: np.ndarray) -> np.ndarray:
         it_kw, ambient, supply_now = float(obs[0]), float(obs[1]), float(obs[3])
-        c = self.phys.c
         a3 = 1.0                                         # free-air valve fully open: cheaper, and the shield clips if unsafe
         A0, A1 = np.meshgrid(self.a0, self.a1, indexing="ij")
         inlet = self.shield.predict_inlet(supply_now, ambient, A0, a3, it_kw, A1)

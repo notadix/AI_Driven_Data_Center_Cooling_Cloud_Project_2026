@@ -122,7 +122,13 @@ class PhysicsSimulator:
         ambient_c: float = 22.0,
         grid_carbon_gco2_kwh: float = 320.0,
         it_power_kw: float = 18.0,
+        day_steps: int = 144,
     ):
+        # Simulator steps per simulated 24 h day. 144 (default) = one step is 10 simulated minutes, so at a 1 s
+        # publish interval a day lasts 2.4 minutes. Raise it (SIM_DAY_STEPS) for a slower, calmer day; the daily
+        # drift per step shrinks in proportion and the noise with its square root.
+        self._day_steps = max(1, int(day_steps))
+        self._tscale = 144.0 / self._day_steps
         self.facility_id = facility_id
         self.crac_id = crac_id
         self.rack_id = rack_id
@@ -173,24 +179,25 @@ class PhysicsSimulator:
 
     def step(self) -> TelemetryPayload:
         self._step += 1
-        hour = (self._step % 144) * (24.0 / 144.0)
+        hour = (self._step % self._day_steps) * (24.0 / self._day_steps)
+        k, kn = self._tscale, math.sqrt(self._tscale)
 
         # Ambient & IT load dynamics
         self.ambient_c = float(
             max(-5.0, min(45.0, self.ambient_c
-                + math.sin(2 * math.pi * (hour - 8) / 24.0) * 0.4
-                + random.gauss(0, 0.15)))
+                + math.sin(2 * math.pi * (hour - 8) / 24.0) * 0.4 * k
+                + random.gauss(0, 0.15 * kn)))
         )
         # it_power_kw is ONE representative rack (10-28 kW); steps are the same size as the RL environment's
         # hall-scale walk (150 kW drift / 80 kW noise) divided by ZONE_SCALE. The old +-200 / 100 steps were
         # 10x the whole range, so the load just alternated between the two clamps.
         self.it_power_kw = float(
             max(10.0, min(28.0, self.it_power_kw
-                + math.sin(2 * math.pi * (hour - 9) / 24.0) * 0.15
-                + random.gauss(0, 0.08)))
+                + math.sin(2 * math.pi * (hour - 9) / 24.0) * 0.15 * k
+                + random.gauss(0, 0.08 * kn)))
         )
         self.carbon_gco2_kwh = float(
-            max(120.0, min(580.0, self.carbon_gco2_kwh + random.gauss(0, 10.0)))
+            max(120.0, min(580.0, self.carbon_gco2_kwh + random.gauss(0, 10.0 * kn)))
         )
 
         # Apply pending control action
@@ -380,6 +387,7 @@ class IoTSimulator:
         publish_interval_s: float = 1.0,
         aws_endpoint: Optional[str] = None,
         aws_region: str = "us-east-1",
+        day_steps: int = 144,
     ):
         # Default topology: 3 facilities × 4 CRACs, matching postgres_schema.sql seed data.
         # ambient_c and grid_carbon_gco2_kwh are derived from REGIONAL_CLIMATE_BASE and
@@ -435,6 +443,7 @@ class IoTSimulator:
                     t.get("grid_carbon_gco2_kwh",
                           FACILITY_GRID_CARBON_GCOEKWH.get(t["facility_id"], 320.0))
                 ),
+                day_steps=day_steps,
             )
 
         # Publisher: AWS Cloud or Local
@@ -549,6 +558,7 @@ def create_simulator_from_env() -> IoTSimulator:
         publish_interval_s=interval,
         aws_endpoint=aws_endpoint,
         aws_region=aws_region,
+        day_steps=int(os.environ.get("SIM_DAY_STEPS", "144")),
     )
 
 

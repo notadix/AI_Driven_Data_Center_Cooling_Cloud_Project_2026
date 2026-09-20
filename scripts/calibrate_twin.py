@@ -149,7 +149,6 @@ def main() -> None:
     d_fit = train.iloc[::5]
 
     keys_thermal = ["return_temp_c", "server_inlet_temp_c", "server_outlet_temp_c"]
-    keys_power = ["cooling_power_kw"]
 
     def fit(names, keys, lo, hi):
         def residuals(theta):

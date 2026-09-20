@@ -85,6 +85,17 @@ class SafetyShield:
         bias = self.calibrator.bias_c if self.calibrator is not None else 0.0
         return np.maximum(supply, mixed) + bias
 
+    def predict_inlet_direct(self, supply_c: float, ambient_c: float, valve_pct: float) -> float:
+        """Zone inlet temperature for an ABSOLUTE supply temperature and valve position (used to preview a manual
+        command before it is applied). Same physics as predict_inlet, without the action-space mapping."""
+        c = self.c
+        supply = float(np.clip(supply_c, 14.0, 24.0))
+        base = supply + c.INLET_OFFSET_C + c.INLET_AMBIENT_COEF * max(0.0, ambient_c - 20.0)
+        free = float(np.clip((valve_pct / 100.0) * (1.0 - max(0.0, (ambient_c - 18.0) / 20.0)), 0.0, 1.0))
+        mixed = (1.0 - free) * base + free * min(ambient_c, 22.0)
+        bias = self.calibrator.bias_c if self.calibrator is not None else 0.0
+        return float(max(supply, mixed) + bias)
+
     # -- shield ----------------------------------------------------------
     def is_safe(self, obs: np.ndarray, action: np.ndarray) -> bool:
         inlet = float(self.predict_inlet(float(obs[3]), float(obs[1]), action[0], action[3], float(obs[0]), action[1]))

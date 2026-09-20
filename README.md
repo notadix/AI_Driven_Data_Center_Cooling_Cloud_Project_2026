@@ -1,9 +1,10 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![CI / Test Suite](https://img.shields.io/badge/pytest-346%20passed-brightgreen.svg)](testing/)
-[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](requirements.txt)
+[![Tests](https://img.shields.io/badge/pytest-375%20passed%20(385%20with%20LocalStack)-brightgreen.svg)](testing/)
+[![Dashboard tests](https://img.shields.io/badge/dashboard%20tests-10%20passed-brightgreen.svg)](src/frontend/tests/)
+[![Python](https://img.shields.io/badge/python-tested%20on%203.14-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
-[![Three.js](https://img.shields.io/badge/three.js-0.183-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
+[![Three.js](https://img.shields.io/badge/three.js-0.168-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## Team Members & Cloud Architecture Roles
@@ -24,7 +25,7 @@ calibrated simulator; nothing has run on a physical plant or on AWS. Frontier202
 |---|---|:---:|
 | Twin fidelity (held-out 30%, measured signals only) | PUE 0.65% MAPE (meets ≈2%); cooling power 12.4% and return temperature 7.2% do not. Inlet/outlet temperature in the dataset are derived by formula and are not counted | partly |
 | FNO thermal surrogate (vs a 2D transport solver) | R² 0.9999, MAE 0.034 °C, 5.1 ms; 18× faster than the solver at 128² (not validated against measured rack temperatures or 3D CFD) | yes, with caveat |
-| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence; gradient boosting (9.0%) and ridge (9.7%) are worse | modest gain |
+| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence; gradient boosting (9.1%) and ridge (9.7%) are worse | modest gain |
 | Control-loop latency | decision 0.59 ms median per CRAC; 3 s worst-case reaction set by the telemetry/control periods | yes |
 | Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical upper bound is -14.4%, so the agent captures 98%; the 15–30% target is not attainable in this twin | no (bounded by the model) |
 | Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | — |
@@ -134,8 +135,28 @@ npm run dev
 ### 3. Run Test Suite
 ```powershell
 $env:PYTHONPATH="."
-python -m pytest testing/ -v
+python -m pytest testing/ -v          # 375 pass, 10 skip without LocalStack (385 pass with it running)
+python -m pyflakes src database dataset scripts
+
+cd src/frontend
+npm test                              # 10 dashboard unit tests (pure logic: rack grid, totals, alarms)
 ```
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs the same checks plus the dashboard build; it was
+written and syntax-checked locally and has not yet run on GitHub.
+
+### Configuration (environment variables)
+| Variable | Default | Effect |
+|---|---|---|
+| `LOCAL_MODE` | `true` via `scripts/run_backend_local.py` | `true` keeps everything local; unset uses real AWS/LocalStack |
+| `IOT_PUBLISH_INTERVAL_S` | `1.0` | Seconds between simulated telemetry messages |
+| `SIM_DAY_STEPS` | `144` | Simulator steps per simulated day. At the default one step is 10 simulated minutes, so a whole day (outdoor temperature cycle) passes in 144 s and cubes can drift between green and amber within minutes. Set e.g. `1440` for a slower, calmer demo |
+| `AUTO_CONTROL_INTERVAL_S` | `2.0` | Seconds between AI control decisions |
+| `CORS_ORIGINS` | local dashboard origins | Comma-separated browser origins allowed to call the API (`*` allows any, without credentials) |
+
+### Manual mode safety
+Manual commands bypass the safety shield (an operator is in charge). Before you press Apply the panel asks the
+backend (`POST /api/v1/control/preview/{facility}/{crac}`) to predict the zone inlet temperature the command
+would produce, shows it, and turns the button into **Apply anyway** when the prediction leaves the safe band.
 
 ### 4. Reproduce the experiments
 Every number in `docs/RESULTS.md` comes from a script; the commands are listed in its section 8
@@ -171,5 +192,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (356 tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (385 tests incl. 10 LocalStack live tests; plus 10 dashboard tests in src/frontend/tests)
 ```

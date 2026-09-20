@@ -1,0 +1,53 @@
+# Continuous integration: backend tests and the dashboard build + unit tests.
+#
+# NOTE: this workflow has not been run on GitHub yet (it was written and syntax-checked locally). If a dependency
+# pin in requirements.txt does not resolve for the runner's Python version, adjust python-version or the pin.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+          pip install pyflakes
+      - name: Static check (undefined names, unused imports)
+        run: python -m pyflakes src database dataset scripts
+      - name: Run tests (LocalStack tests skip themselves when it is not running)
+        env:
+          LOCAL_MODE: "true"
+        run: python -m pytest testing -q
+
+  frontend:
+    name: Dashboard build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Production build
+        run: npm run build
