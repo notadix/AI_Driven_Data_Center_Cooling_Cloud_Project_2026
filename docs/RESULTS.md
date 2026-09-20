@@ -15,7 +15,7 @@ to"), this document replaces it with what was actually measured.
 | 2. Predictive thermal surrogate + load forecasting | FNO R² 0.9997 / MAE 0.06 °C / 6.3 ms; load forecast beats persistence at ≥ 30 min (8.7% vs 9.4% MAPE at 60 min) | §2 · `results/fno_eval_metrics.json`, `results/load_forecast_metrics.json` |
 | 3. Safe RL, 15–30% less cooling energy vs a Guideline-36 baseline, no SLA violations | Selected agent −14.2% (CI 12.8–15.4%), 0 violations; 5-seed mean −9.2% ± 4.9%. **Physical upper bound in this twin: −14.4%**, of which the agent captures 98.4% | §3 · `results/rl_benchmark.json`, `results/energy_headroom.json` |
 | 4. Carbon- and water-aware optimisation | Load shifting −1.3…−2.1% facility CO₂; Safe-PPO −4.2…−7.3% water | §4 · `results/carbon_water.json` |
-| 5. Scalable, fault-tolerant pipeline; transfer / online learning | Zero-shot transfer −9.5% with 0 violations; sensor-fault guard; online calibration restores safety under plant drift. **Not deployed on AWS; LocalStack not run live** | §5–6 · `results/transfer_learning.json` |
+| 5. Scalable, fault-tolerant pipeline; transfer / online learning | Zero-shot transfer −9.5% with 0 violations; sensor-fault guard; online calibration restores safety under plant drift. **LocalStack validated live; not deployed on AWS** | §5–6 · `results/transfer_learning.json` |
 | 6. Baselines, explainability, reproducible benchmark | Constant, PID, GL36-style, standard PPO, Lagrangian-only, Safe-PPO; live gradient×input attribution | §3, §7 |
 
 ---
@@ -182,18 +182,27 @@ windows; it previously alarmed on noise).
 
 ## 6. Cloud and deployment status
 
-The AWS integration code (IoT Core, Timestream, SiteWise, TwinMaker, Step Functions,
-SageMaker handlers, CloudFormation) is unit-tested in local mode and against mocked clients.
-**It has not been run against a live LocalStack container (Docker was not running) and has not
-been deployed to AWS.** `docs/evidence/step_functions_run.md` records the connection failure
-honestly. A separate, real-AWS deployment on the free tier is still to do.
+The AWS integration code (IoT Core, Timestream, SiteWise, TwinMaker, Step Functions, SageMaker
+handlers, CloudFormation) is unit-tested in local mode and against mocked clients. It was also run
+against **LocalStack Community 3.3** (free, no AWS account): with the backend in `LOCAL_MODE=false`
+mode, S3, SNS, EventBridge and Step Functions (Pass/Choice) work, all six branches of the test
+workflow route correctly, and the suite passes with the live tests enabled (no skips left for
+LocalStack). Details and reproduction: `docs/LOCALSTACK.md`, `docs/evidence/step_functions_run.md`.
+
+That run found and fixed four real problems (UTF-8 handling in the bootstrap script, non-ASCII SNS
+subjects that real SNS would reject, BOMs in JSON, and Timestream failures making history and analytics
+empty; the client now degrades to its in-memory store).
+
+**Still not verified:** the production state machine (needs the SageMaker task integration, which
+Community rejects), Timestream, IoT Core data plane, SiteWise and TwinMaker (Pro-only on LocalStack), and
+anything on real AWS. A real-AWS free-tier deployment is the remaining phase.
 
 ## 7. Explainability and system checks (Objective 6)
 
 Live gradient×input attribution over the 10 observation features
 (`GET /api/v1/control/explain/{facility}/{crac}`, shown on the dashboard). Test suite:
-run `python -m pytest testing/` (see the README badge for the current count; 8 tests are
-skipped because they need a running LocalStack). Frontend: `npm run build` succeeds; the
+run `python -m pytest testing/` (332 pass without LocalStack; 10 more run and pass when a
+LocalStack container is up, 342 in total). Frontend: `npm run build` succeeds; the
 dashboard was exercised in a browser (three facilities, control panel, emergency override,
 carbon-schedule and predictive panels) with no console errors while the backend was up.
 
@@ -226,5 +235,5 @@ python scripts/make_result_charts.py                   # presentation/*.png
 5. **Carbon results rest on assumptions** (20% deferrable load, 8 h window, synthetic diurnal
    grid profile shaped like `lambda_carbon_fetcher`); real grid data and job traces are absent.
 6. **Seed sensitivity:** five seeds per method; the spread (3.4–14.2%) is large.
-7. **Cloud:** no live LocalStack run and no AWS deployment (§6).
+7. **Cloud:** validated on LocalStack Community only; Pro-only services and the production state machine are unverified, and nothing has been deployed to AWS (§6).
 8. Return- and outlet-temperature fidelity (7–8%) misses the ≈ 2% target: the model is static.

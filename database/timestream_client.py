@@ -184,6 +184,12 @@ class TimestreamClient:
         self._store = InMemoryTimestreamStore()
         self._write_client = None
         self._query_client = None
+        # Circuit breaker: when Timestream errors (service not available on LocalStack Community,
+        # throttling, an outage, expired credentials) telemetry keeps flowing into the in-memory
+        # store and reads are served from it, instead of every write logging an error and history /
+        # analytics coming back empty. The cloud is retried after CLOUD_RETRY_S.
+        self._cloud_down_until = 0.0
+        self._cloud_failures = 0
 
         if not local_mode:
             try:
@@ -198,6 +204,30 @@ class TimestreamClient:
             except Exception as e:
                 logger.warning("Timestream init failed, using in-memory mode: %s", e)
                 self.local_mode = True
+
+    CLOUD_RETRY_S = float(os.environ.get("TIMESTREAM_RETRY_S", "60"))
+
+    def _cloud_ready(self) -> bool:
+        return not self.local_mode and time.time() >= self._cloud_down_until
+
+    def _local_reads(self) -> bool:
+        """True when reads must be served from the in-memory store."""
+        return not self._cloud_ready()
+
+    def _cloud_failed(self, exc: Exception) -> None:
+        first = self._cloud_failures == 0
+        self._cloud_failures += 1
+        self._cloud_down_until = time.time() + self.CLOUD_RETRY_S
+        if first:
+            logger.warning(
+                "Timestream unavailable (%s); serving telemetry from the in-memory store, retrying in %.0fs",
+                str(exc)[:160], self.CLOUD_RETRY_S,
+            )
+
+    def _cloud_ok(self) -> None:
+        if self._cloud_failures:
+            logger.info("Timestream reachable again; resuming cloud reads and writes")
+        self._cloud_failures = 0
 
     # ------------------------------------------------------------------
     # Write path
@@ -240,8 +270,8 @@ class TimestreamClient:
         }
         self._store.write([local_record])
 
-        if self.local_mode:
-            return True
+        if not self._cloud_ready():
+            return True     # local mode, or the cloud is temporarily down: the record is kept in memory
 
         try:
             self._write_client.write_records(
@@ -249,15 +279,16 @@ class TimestreamClient:
                 TableName=self.TABLE_NAME,
                 Records=[record],
             )
+            self._cloud_ok()
             return True
         except ClientError as e:
             code = e.response["Error"]["Code"]
             if code == "RejectedRecordsException":
-                logger.warning("Timestream rejected records: %s", e)
+                logger.warning("Timestream rejected records: %s", e)   # bad data, not an outage
             else:
-                logger.error("Timestream write error: %s", e)
+                self._cloud_failed(e)
         except BotoCoreError as e:
-            logger.error("Timestream botocore error: %s", e)
+            self._cloud_failed(e)
         return False
 
     def write_telemetry_batch(self, payloads: List[Dict[str, Any]]) -> int:
@@ -277,7 +308,7 @@ class TimestreamClient:
 
     def get_latest_pue(self, facility_id: str, hours: int = 1) -> Optional[float]:
         """Returns average PUE over the last N hours for a facility."""
-        if self.local_mode:
+        if self._local_reads():
             return self._store.aggregate_avg("telemetry", hours=hours, facility_id=facility_id)
 
         if not _is_safe_identifier(facility_id):
@@ -291,25 +322,15 @@ class TimestreamClient:
             f"AND facility_id = '{facility_id}' "
             f"AND time > ago({hours}h)"
         )
-        return self._scalar_query(query)
+        result, ok = self._scalar_query(query)
+        if not ok:
+            return self._store.aggregate_avg("telemetry", hours=hours, facility_id=facility_id)
+        return result
 
     def get_sla_violation_rate(self, facility_id: str, hours: int = 24) -> float:
         """Returns fraction of readings where server inlet temp was outside ASHRAE range (18–27°C)."""
-        if self.local_mode:
-            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-            total, violations = 0, 0
-            for r in self._store._records:
-                ts = r.get("timestamp_dt")
-                if ts is None or ts < cutoff:
-                    continue
-                if r.get("dimensions", {}).get("facility_id") != facility_id:
-                    continue
-                inlet = r.get("measures", {}).get("server_inlet_temp_c")
-                if inlet is not None:
-                    total += 1
-                    if inlet < 18.0 or inlet > 27.0:
-                        violations += 1
-            return violations / max(1, total)
+        if self._local_reads():
+            return self._local_sla_rate(facility_id, hours)
 
         if not _is_safe_identifier(facility_id):
             logger.warning("Rejected unsafe facility_id in get_sla_violation_rate: %r", facility_id)
@@ -324,8 +345,26 @@ class TimestreamClient:
             f"AND facility_id = '{facility_id}' "
             f"AND time > ago({hours}h)"
         )
-        result = self._scalar_query(query)
+        result, ok = self._scalar_query(query)
+        if not ok:
+            return self._local_sla_rate(facility_id, hours)
         return float(result or 0.0)
+
+    def _local_sla_rate(self, facility_id: str, hours: int) -> float:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        total, violations = 0, 0
+        for r in self._store._records:
+            ts = r.get("timestamp_dt")
+            if ts is None or ts < cutoff:
+                continue
+            if r.get("dimensions", {}).get("facility_id") != facility_id:
+                continue
+            inlet = r.get("measures", {}).get("server_inlet_temp_c")
+            if inlet is not None:
+                total += 1
+                if inlet < 18.0 or inlet > 27.0:
+                    violations += 1
+        return violations / max(1, total)
 
     def get_telemetry_history(
         self,
@@ -342,12 +381,15 @@ class TimestreamClient:
         if start_time is None:
             start_time = end_time - timedelta(hours=1)
 
-        if self.local_mode:
+        def local():
             rows = self._store.query_history(
                 "telemetry", start_time, end_time,
                 facility_id=facility_id, crac_id=crac_id, limit=limit,
             )
             return [r.get("raw", {}) for r in rows]
+
+        if self._local_reads():
+            return local()
 
         if not _is_safe_identifier(facility_id) or (crac_id is not None and not _is_safe_identifier(crac_id)):
             logger.warning("Rejected unsafe identifier in get_telemetry_history: facility_id=%r crac_id=%r", facility_id, crac_id)
@@ -365,13 +407,17 @@ class TimestreamClient:
             f"ORDER BY time DESC LIMIT {int(limit)}"
         )
         # Newest `limit` rows, returned oldest-first.
-        return list(reversed(self._tabular_query(query)))
+        rows, ok = self._tabular_query(query)
+        return list(reversed(rows)) if ok else local()
 
     def get_spatial_snapshot(self) -> List[Dict[str, Any]]:
         """Returns latest telemetry per CRAC for spatial heatmap rendering."""
-        if self.local_mode:
+        def local():
             latest = self._store.get_all_latest()
             return [r.get("raw", {}) for r in latest.values() if r.get("raw")]
+
+        if self._local_reads():
+            return local()
 
         query = (
             f"WITH ranked AS ("
@@ -381,24 +427,29 @@ class TimestreamClient:
             f") SELECT facility_id, crac_id, time, measure_value::double AS server_inlet_temp_c "
             f"FROM ranked WHERE rn = 1"
         )
-        return self._tabular_query(query)
+        rows, ok = self._tabular_query(query)
+        return rows if ok else local()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _scalar_query(self, query_string: str) -> Optional[float]:
+    def _scalar_query(self, query_string: str):
+        """Returns (value, ok). ok=False means the cloud query failed (the breaker is tripped)."""
         try:
             resp = self._query_client.query(QueryString=query_string)
+            self._cloud_ok()
             rows = resp.get("Rows", [])
             if rows and rows[0]["Data"]:
                 scalar = rows[0]["Data"][0].get("ScalarValue")
-                return float(scalar) if scalar else None
+                return (float(scalar) if scalar else None), True
+            return None, True
         except (ClientError, BotoCoreError) as e:
-            logger.warning("Timestream scalar query failed: %s", e)
-        return None
+            self._cloud_failed(e)
+            return None, False
 
-    def _tabular_query(self, query_string: str) -> List[Dict[str, Any]]:
+    def _tabular_query(self, query_string: str):
+        """Returns (rows, ok). ok=False means the cloud query failed (the breaker is tripped)."""
         results = []
         try:
             paginator = self._query_client.get_paginator("query")
@@ -411,9 +462,11 @@ class TimestreamClient:
                         data = row["Data"][i]
                         row_dict[name] = data.get("ScalarValue") or data.get("NullValue")
                     results.append(row_dict)
+            self._cloud_ok()
+            return results, True
         except (ClientError, BotoCoreError) as e:
-            logger.warning("Timestream tabular query failed: %s", e)
-        return results
+            self._cloud_failed(e)
+            return [], False
 
 
 # Module-level singleton

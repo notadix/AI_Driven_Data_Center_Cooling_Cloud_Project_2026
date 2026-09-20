@@ -1,132 +1,58 @@
-# Step Functions LocalStack Evidence
+# Step Functions on LocalStack: evidence
 
-**Date**: 2026-09-19  
-**Branch**: `feature/SnigdaChandanala`  
-**Author**: Snigda Chandanala (snigdachandanala@gmail.com)
+**Date:** 2026-09-20  ·  **Environment:** LocalStack Community 3.3 (Docker), no AWS account,
+`AWS_ENDPOINT_URL=http://localhost:4566`, dummy credentials.
 
----
+This replaces the earlier version of this file, which recorded `CONNECTION_REFUSED` because
+Docker was not running. Everything below was actually executed.
 
-## What was attempted
+## What ran
 
-A Pass-only AWS Step Functions state machine
-(`CoolingTwinRetrainingTestStateMachine`) was defined and run against
-LocalStack Community edition (`http://localhost:4566`).
+`scripts/run_stepfunctions_evidence.py` creates the Pass/Choice test workflow
+(`src/aws/orchestration/step_functions_localstack_test_workflow.json`) on LocalStack and starts one
+execution per combination of drift severity (CRITICAL / MODERATE / NONE) and validation outcome
+(pass / fail). The checked-in definition injects a fixed drift result, so a single run only
+reaches one branch; the script derives in-memory variants from the same definition so that
+**every Choice state is exercised**. Raw results: `results/stepfunctions_localstack_run.json`.
 
-The workflow (`step_functions_localstack_test_workflow.json`) uses only Pass and
-Choice states — no Lambda, SageMaker, or other integration ARNs are needed —
-so it exercises the Step Functions state-machine execution engine itself without
-requiring Pro/Enterprise services.
+| Drift | Validation | Status | Path taken |
+|---|---|---|---|
+| CRITICAL | pass | SUCCEEDED | DetectModelDrift → EvaluateDriftSeverity → **EmergencyRetraining** → RunModelValidation → CheckValidationGate → ValidationGateDecision → **DeployModel** → NotifySuccess |
+| CRITICAL | fail | SUCCEEDED | … → EmergencyRetraining → … → ValidationGateDecision → **AlertValidationFailure** |
+| MODERATE | pass | SUCCEEDED | … → **PrioritizedRetraining** → … → DeployModel → NotifySuccess |
+| MODERATE | fail | SUCCEEDED | … → PrioritizedRetraining → … → AlertValidationFailure |
+| NONE | pass | SUCCEEDED | … → **StandardRetraining** → … → DeployModel → NotifySuccess |
+| NONE | fail | SUCCEEDED | … → StandardRetraining → … → AlertValidationFailure |
 
----
+All six executions succeeded and routed as designed (the script asserts each path).
 
-## Execution log
+## What this does and does not show
 
-```
-[run] endpoint=http://localhost:4566
-[run] definition_chars=4037  (step_functions_localstack_test_workflow.json)
-[run] CONNECTION_REFUSED: Could not connect to the endpoint URL: "http://localhost:4566/"
-[results] {
-  "create_state_machine": {
-    "status": "CONNECTION_REFUSED",
-    "error": "Could not connect to the endpoint URL: \"http://localhost:4566/\""
-  }
-}
-```
+* It shows that the state-machine definition is valid, that Step Functions on LocalStack executes it,
+  and that both Choice states (`EvaluateDriftSeverity`, `ValidationGateDecision`) route correctly.
+* It does **not** show the production workflow running. The production definition
+  (`step_functions_workflow.json`) uses the SageMaker `createTrainingJob.sync` /
+  `createProcessingJob.sync` task integrations, and LocalStack Community rejects it at creation:
+  `InvalidDefinition ... Unsupported service: 'sagemaker'`. `testing/test_localstack_live.py` checks
+  that this is the reason it fails (not a malformed definition). Running the production workflow needs
+  either LocalStack Pro or a real AWS account.
+* The drift-detection and validation steps in the test workflow are Pass states with fixed results, not
+  the real Lambda functions.
 
----
+## Bugs this run found (fixed)
 
-## Outcome
-
-| Step | Result |
+| Finding | Fix |
 |---|---|
-| LocalStack health probe (`/_localstack/health`) | **FAILED** — `[WinError 10061] No connection could be made because the target machine actively refused it` |
-| `sfn.create_state_machine(...)` | **NOT REACHED** — connection refused before boto3 could send the request |
-| `sfn.start_execution(...)` | **NOT REACHED** |
+| `scripts/bootstrap_localstack.py` read the workflow files with the Windows default encoding, so the em dash in SNS subjects became `â€”` | read as UTF-8 |
+| SNS `Subject` must be ASCII on real AWS; the production definition used an em dash in three subjects, so those publishes would have failed on AWS | replaced with a hyphen |
+| `step_functions_localstack_test_workflow.json` and two docs started with a UTF-8 BOM (rejected by strict JSON parsers) | BOM removed |
+| With `LOCAL_MODE=false`, an unavailable Timestream made every write log an error (228 warnings in 30 s) and **history / analytics returned empty** | circuit breaker in `database/timestream_client.py`: records stay in the in-memory store, reads fall back to it, the cloud is retried after 60 s. After the fix: history returns data, 1 warning |
 
----
-
-## Root cause
-
-LocalStack is not running on this development machine.  The Docker container
-was not started because:
-
-- Docker Desktop requires a paid licence in this environment, or
-- The container was not started before running the evidence script.
-
-The boto3 client correctly targeted `http://localhost:4566` (via
-`AWS_ENDPOINT_URL=http://localhost:4566`) and received a TCP-level connection
-refusal from the OS (`WinError 10061`), not an HTTP-level error from AWS.
-
----
-
-## What the code does without LocalStack (LOCAL_MODE=true, no AWS_ENDPOINT_URL)
-
-When `AWS_ENDPOINT_URL` is **unset** (the default — `LOCAL_MODE=true`):
-
-- `IoTSimulator` runs entirely in-memory without calling boto3.
-- `AWSIoTPublisher` is never instantiated.
-- All 179 pytest tests pass without LocalStack (confirmed: 179 passed, 3 skipped
-  after Commit 3).
-
-The 3 skipped tests are all decorated with `@pytest.mark.skipif(not
-localstack_available(), ...)` and cover:
-
-1. S3 endpoint wiring (`TestBoto3EndpointKwargs`)
-2. LocalStack S3 bucket creation (`TestLocalStackS3Integration`)
-3. Step Functions SM creation (`TestStepFunctionsWorkflow` LocalStack live test)
-
----
-
-## What would happen with LocalStack running
-
-Based on the workflow definition:
-
-1. `sfn.create_state_machine(name="CoolingTwinRetrainingTestStateMachine", ...)`
-   → returns `{"stateMachineArn": "arn:aws:states:us-east-1:000000000000:stateMachine:CoolingTwinRetrainingTestStateMachine"}`
-
-2. `sfn.start_execution(stateMachineArn=..., input={"drift": {"drift_severity": "MODERATE"}})`
-   → Choice state routes to `PrioritizedRetraining`
-   → All subsequent Pass states execute immediately
-   → Execution reaches `NotifySuccess` (End=true)
-   → Final status: **SUCCEEDED**
-
-3. `sfn.describe_execution(executionArn=...)` → `{"status": "SUCCEEDED", "output": {...}}`
-
-LocalStack Community supports all Pass and Choice states natively; no Pro
-features are required for this test workflow.
-
----
-
-## How to reproduce
+## Reproduce
 
 ```bash
-# 1. Start LocalStack (Community edition, free)
 docker compose -f deployment/docker/docker-compose.yml up -d localstack
-
-# 2. Bootstrap resources (creates SM + S3 + SNS + EventBridge)
 python scripts/bootstrap_localstack.py
-
-# 3. Run the live tests
-pytest testing/test_backend_iot.py -k "LocalStack" -v
-
-# Expected (with LocalStack running):
-#   TestLocalStackS3Integration::test_s3_bucket_creation_via_localstack  PASSED
-#   TestLocalStackSFnIntegration::test_sfn_create_and_run_test_workflow   PASSED
+AWS_ENDPOINT_URL=http://localhost:4566 python scripts/run_stepfunctions_evidence.py
+AWS_ENDPOINT_URL=http://localhost:4566 python -m pytest testing/ -q     # 8+ live tests instead of skips
 ```
-
----
-
-## Boto3 endpoint wiring validation (no LocalStack required)
-
-Even without LocalStack running, the boto3 endpoint-URL plumbing was verified
-at unit-test time:
-
-```
-TestBoto3EndpointKwargs::test_iot_publisher_uses_endpoint_url         PASSED
-TestBoto3EndpointKwargs::test_twinmaker_client_respects_endpoint_url  PASSED
-TestBoto3EndpointKwargs::test_drift_trigger_uses_endpoint_url         PASSED
-TestBoto3EndpointKwargs::test_timestream_client_uses_endpoint_url     PASSED
-```
-
-These mock-patch the boto3 client constructor and assert that
-`endpoint_url=AWS_ENDPOINT_URL` is forwarded whenever the env-var is set.

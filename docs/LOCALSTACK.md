@@ -201,19 +201,24 @@ aws --endpoint-url http://localhost:4566 stepfunctions start-execution \
 
 ---
 
-## Known limitations (LocalStack Community edition)
+## What works on LocalStack Community (verified live, 2026-09-20)
 
-| Service | Community | Notes |
+Checked against `localstack/localstack:3.3` (`/_localstack/health` reports edition `community`).
+
+| Service | Result | Evidence |
 |---|---|---|
-| S3 | ✅ | Fully supported |
-| SNS | ✅ | Fully supported |
-| EventBridge | ✅ | Fully supported |
-| Step Functions (Pass/Choice) | ✅ | Pass-only test workflow runs to SUCCEEDED |
-| Step Functions (Lambda integration) | ✅ | Lambda invocations work on Community |
-| Step Functions (SageMaker integration) | ❌ | Pro/Enterprise only |
-| Timestream | ❌ | Pro/Enterprise only — backend uses in-memory fallback |
-| IoT SiteWise | ❌ | Pro/Enterprise only |
-| AWS IoT TwinMaker | ❌ | Pro/Enterprise only |
+| S3 | ✅ works | buckets created by `bootstrap_localstack.py`; live tests pass |
+| SNS | ✅ works | topic created |
+| EventBridge | ✅ works | bus created |
+| Step Functions (Pass / Choice) | ✅ works | all 6 branches of the test workflow run to SUCCEEDED (`docs/evidence/step_functions_run.md`) |
+| Step Functions (Lambda integration) | ⚠️ not exercised | Lambda is listed as available, but no Lambda task was run |
+| Step Functions (SageMaker integration) | ❌ rejected | `InvalidDefinition ... Unsupported service: 'sagemaker'`: the production state machine cannot be created; needs LocalStack Pro or real AWS |
+| Timestream | ❌ Pro only | `API for service 'timestream-write' not yet implemented or pro feature`; the backend serves telemetry from its in-memory store (circuit breaker, retried every 60 s) |
+| IoT Core data plane / SiteWise / TwinMaker | ❌ not available | not in the running-services list; not exercised |
+
+With `LOCAL_MODE=false` against LocalStack the backend starts, `/health`, telemetry, history,
+analytics, control and `/metrics` all respond, and the log shows one Timestream warning
+(before the circuit breaker it showed one error per telemetry write and history came back empty).
 
 ---
 

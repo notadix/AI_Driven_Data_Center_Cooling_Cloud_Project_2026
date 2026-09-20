@@ -4,8 +4,8 @@
 
 ## Automated tests
 
-`python -m pytest testing/` -> **321 passed, 8 skipped, 0 failed.** The 8 skipped tests need a
-running LocalStack container and are skipped when it is unreachable (Docker was not running).
+`python -m pytest testing/` -> **332 passed, 10 skipped without LocalStack; 342 passed, 0 skipped with it.** The 10 skipped tests need a
+running LocalStack container and skip themselves when it is unreachable.
 
 | File | Covers |
 |---|---|
@@ -29,10 +29,16 @@ running LocalStack container and are skipped when it is unreachable (Docker was 
   carbon-aware schedule panel and predictive panel all render with data; no console errors while the
   backend was up. (Errors seen while the backend was still starting are the WebSocket retry loop.)
 
+## LocalStack
+
+With `localstack/localstack:3.3` running, the suite passes with the live tests enabled (no LocalStack
+skips): S3/SNS/EventBridge bootstrap, all six Step Functions test-workflow branches, and the Timestream
+outage fallback. See `docs/LOCALSTACK.md` and `docs/evidence/step_functions_run.md`.
+
 ## Not verified
 
-* **LocalStack / AWS:** the AWS-mode code was not run against LocalStack (Docker not running) or
-  AWS; see `docs/LOCALSTACK.md` and `docs/evidence/step_functions_run.md`.
-* No controller has run on a physical plant.
+* The production state machine (needs the SageMaker task integration, unsupported on LocalStack
+  Community), Timestream, IoT Core data plane, SiteWise and TwinMaker, and anything on real AWS.
+* No controller has run on a physical plant (out of scope for this software project).
 
 Measured results and their limitations: `docs/RESULTS.md`.

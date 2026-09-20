@@ -1,6 +1,6 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![CI / Test Suite](https://img.shields.io/badge/pytest-321%20passed-brightgreen.svg)](testing/)
+[![CI / Test Suite](https://img.shields.io/badge/pytest-332%20passed-brightgreen.svg)](testing/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
 [![Three.js](https://img.shields.io/badge/three.js-0.183-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
@@ -31,7 +31,8 @@ calibrated simulator; nothing has run on a physical plant or on AWS.
 | Water | Safe-PPO -4.2% to -7.3% vs baseline | — |
 | Transfer across facilities | zero-shot -9.5% with 0 violations | yes |
 | Fault tolerance | sensor-fault guard + online calibration restore safety under drift | yes |
-| AWS deployment / LocalStack live run | **not done** (Docker not run) | no |
+| LocalStack live run | S3/SNS/EventBridge/Step Functions verified; Timestream falls back to memory (Pro-only on LocalStack) | yes |
+| AWS deployment | **not done** | no |
 
 The "Guideline-36-style" baseline is a reset-schedule controller written for this project, not a
 certified ASHRAE Guideline 36 implementation. RL results are seed-sensitive (3.4% to 14.2%).
@@ -168,5 +169,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (321 tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (342 tests)
 ```

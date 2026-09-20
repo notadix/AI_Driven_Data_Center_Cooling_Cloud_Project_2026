@@ -1,0 +1,239 @@
+{
+  "endpoint": "http://localhost:4566",
+  "state_machine_definition": "src\\aws\\orchestration\\step_functions_localstack_test_workflow.json",
+  "all_executions_succeeded": true,
+  "branches_verified": 6,
+  "runs": [
+    {
+      "status": "SUCCEEDED",
+      "path": [
+        "DetectModelDrift",
+        "EvaluateDriftSeverity",
+        "EmergencyRetraining",
+        "RunModelValidation",
+        "CheckValidationGate",
+        "ValidationGateDecision",
+        "DeployModel",
+        "NotifySuccess"
+      ],
+      "events": 18,
+      "output": {
+        "facility_id": "DC-EAST-01",
+        "drift": {
+          "psi_score": 0.12,
+          "drift_detected": true,
+          "drift_severity": "CRITICAL"
+        },
+        "training": {
+          "training_job": "cooling-twin-emergency-test",
+          "status": "Completed"
+        },
+        "validation": {
+          "mae": 0.031,
+          "rmse": 0.044,
+          "r2": 0.97,
+          "passed": true
+        },
+        "deployment": {
+          "endpoint": "cooling-twin-endpoint",
+          "status": "InService"
+        },
+        "notification": {
+          "message": "Model retraining and deployment completed successfully."
+        }
+      },
+      "drift_severity": "CRITICAL",
+      "validation_passed": true
+    },
+    {
+      "status": "SUCCEEDED",
+      "path": [
+        "DetectModelDrift",
+        "EvaluateDriftSeverity",
+        "EmergencyRetraining",
+        "RunModelValidation",
+        "CheckValidationGate",
+        "ValidationGateDecision",
+        "AlertValidationFailure"
+      ],
+      "events": 16,
+      "output": {
+        "facility_id": "DC-EAST-01",
+        "drift": {
+          "psi_score": 0.12,
+          "drift_detected": true,
+          "drift_severity": "CRITICAL"
+        },
+        "training": {
+          "training_job": "cooling-twin-emergency-test",
+          "status": "Completed"
+        },
+        "validation": {
+          "mae": 0.031,
+          "rmse": 0.044,
+          "r2": 0.97,
+          "passed": false
+        },
+        "notification": {
+          "message": "Model validation failed. Manual review required."
+        }
+      },
+      "drift_severity": "CRITICAL",
+      "validation_passed": false
+    },
+    {
+      "status": "SUCCEEDED",
+      "path": [
+        "DetectModelDrift",
+        "EvaluateDriftSeverity",
+        "PrioritizedRetraining",
+        "RunModelValidation",
+        "CheckValidationGate",
+        "ValidationGateDecision",
+        "DeployModel",
+        "NotifySuccess"
+      ],
+      "events": 18,
+      "output": {
+        "facility_id": "DC-EAST-01",
+        "drift": {
+          "psi_score": 0.12,
+          "drift_detected": true,
+          "drift_severity": "MODERATE"
+        },
+        "training": {
+          "training_job": "cooling-twin-prioritized-test",
+          "status": "Completed"
+        },
+        "validation": {
+          "mae": 0.031,
+          "rmse": 0.044,
+          "r2": 0.97,
+          "passed": true
+        },
+        "deployment": {
+          "endpoint": "cooling-twin-endpoint",
+          "status": "InService"
+        },
+        "notification": {
+          "message": "Model retraining and deployment completed successfully."
+        }
+      },
+      "drift_severity": "MODERATE",
+      "validation_passed": true
+    },
+    {
+      "status": "SUCCEEDED",
+      "path": [
+        "DetectModelDrift",
+        "EvaluateDriftSeverity",
+        "PrioritizedRetraining",
+        "RunModelValidation",
+        "CheckValidationGate",
+        "ValidationGateDecision",
+        "AlertValidationFailure"
+      ],
+      "events": 16,
+      "output": {
+        "facility_id": "DC-EAST-01",
+        "drift": {
+          "psi_score": 0.12,
+          "drift_detected": true,
+          "drift_severity": "MODERATE"
+        },
+        "training": {
+          "training_job": "cooling-twin-prioritized-test",
+          "status": "Completed"
+        },
+        "validation": {
+          "mae": 0.031,
+          "rmse": 0.044,
+          "r2": 0.97,
+          "passed": false
+        },
+        "notification": {
+          "message": "Model validation failed. Manual review required."
+        }
+      },
+      "drift_severity": "MODERATE",
+      "validation_passed": false
+    },
+    {
+      "status": "SUCCEEDED",
+      "path": [
+        "DetectModelDrift",
+        "EvaluateDriftSeverity",
+        "StandardRetraining",
+        "RunModelValidation",
+        "CheckValidationGate",
+        "ValidationGateDecision",
+        "DeployModel",
+        "NotifySuccess"
+      ],
+      "events": 18,
+      "output": {
+        "facility_id": "DC-EAST-01",
+        "drift": {
+          "psi_score": 0.12,
+          "drift_detected": false,
+          "drift_severity": "NONE"
+        },
+        "training": {
+          "training_job": "cooling-twin-standard-test",
+          "status": "Completed"
+        },
+        "validation": {
+          "mae": 0.031,
+          "rmse": 0.044,
+          "r2": 0.97,
+          "passed": true
+        },
+        "deployment": {
+          "endpoint": "cooling-twin-endpoint",
+          "status": "InService"
+        },
+        "notification": {
+          "message": "Model retraining and deployment completed successfully."
+        }
+      },
+      "drift_severity": "NONE",
+      "validation_passed": true
+    },
+    {
+      "status": "SUCCEEDED",
+      "path": [
+        "DetectModelDrift",
+        "EvaluateDriftSeverity",
+        "StandardRetraining",
+        "RunModelValidation",
+        "CheckValidationGate",
+        "ValidationGateDecision",
+        "AlertValidationFailure"
+      ],
+      "events": 16,
+      "output": {
+        "facility_id": "DC-EAST-01",
+        "drift": {
+          "psi_score": 0.12,
+          "drift_detected": false,
+          "drift_severity": "NONE"
+        },
+        "training": {
+          "training_job": "cooling-twin-standard-test",
+          "status": "Completed"
+        },
+        "validation": {
+          "mae": 0.031,
+          "rmse": 0.044,
+          "r2": 0.97,
+          "passed": false
+        },
+        "notification": {
+          "message": "Model validation failed. Manual review required."
+        }
+      },
+      "drift_severity": "NONE",
+      "validation_passed": false
+    }
+  ]
+}
