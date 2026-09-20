@@ -159,23 +159,30 @@ def twin_fidelity_chart():
     d = load("twin_fidelity.json")
     if not d:
         return
-    keys = ["server_inlet_temp_c", "pue", "cooling_power_kw", "return_temp_c", "server_outlet_temp_c"]
-    names = ["Inlet temp", "PUE", "Cooling power", "Return temp", "Outlet temp"]
-    before = [d["held_out_original_constants"][k]["mape_pct"] for k in keys]
-    after = [d["held_out_calibrated_constants"][k]["mape_pct"] for k in keys]
+    keys = d["measured_quantities"]                       # only quantities that are sensor measurements
+    names = {"pue": "PUE", "cooling_power_kw": "Cooling power", "return_temp_c": "Return temp"}
+    sync = d["synchronised_twin_one_step"]
+    series = [
+        ("uncalibrated physics", [d["held_out_original_constants"][k]["mape_pct"] for k in keys], GREY),
+        ("calibrated physics (open loop)", [d["held_out_calibrated_constants"][k]["mape_pct"] for k in keys], BLUE),
+        ("synchronised twin (1 step ahead)", [sync[k]["synced_twin_mape_pct"] for k in keys], GREEN),
+        ("persistence (repeat last reading)", [sync[k]["persistence_mape_pct"] for k in keys], AMBER),
+    ]
     x = np.arange(len(keys))
-    fig, ax = plt.subplots(figsize=(11, 4.6))
-    ax.bar(x - 0.2, before, 0.4, color=GREY, edgecolor=NAVY, label="uncalibrated physics")
-    b2 = ax.bar(x + 0.2, after, 0.4, color=BLUE, edgecolor=NAVY, label="calibrated to Frontier2023")
-    ax.axhline(d["report_target_mape_pct"], color=RED, linestyle="--", label=f"report target (~{d['report_target_mape_pct']:.0f}% MAPE)")
+    w = 0.2
+    fig, ax = plt.subplots(figsize=(11.5, 4.8))
+    for i, (label, vals, color) in enumerate(series):
+        bars = ax.bar(x + (i - 1.5) * w, vals, w, color=color, edgecolor=NAVY, label=label)
+        for b_, v in zip(bars, vals):
+            ax.text(b_.get_x() + b_.get_width() / 2, v * 1.12, f"{v:.2f}", ha="center", fontsize=8)
+    ax.axhline(d["report_target_mape_pct"], color=RED, linestyle="--", label=f"report target (~{d['report_target_mape_pct']:.0f}%)")
     ax.set_yscale("log")
     ax.set_xticks(x)
-    ax.set_xticklabels(names)
-    ax.set_ylabel("MAPE on held-out 30% of the year (%)")
-    ax.set_title("Digital-twin fidelity vs measured Frontier2023 data")
-    for b in b2:
-        ax.text(b.get_x() + b.get_width() / 2, b.get_height() * 1.1, f"{b.get_height():.2f}%", ha="center", fontsize=9, fontweight="bold")
-    ax.legend()
+    ax.set_xticklabels([names.get(k, k) for k in keys])
+    ax.set_ylabel("MAPE, held-out 30% of the year (%)")
+    ax.set_title("Twin fidelity on the MEASURED Frontier2023 signals only\n"
+                 "(inlet/outlet temperature are derived by formula in the dataset and are excluded)")
+    ax.legend(fontsize=8, ncol=2)
     fig.tight_layout()
     save(fig, "twin_fidelity.png")
 

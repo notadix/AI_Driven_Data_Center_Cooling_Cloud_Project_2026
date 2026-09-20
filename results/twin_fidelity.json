@@ -26,7 +26,8 @@
       "mape_pct": 3.778,
       "mae": 0.0399
     },
-    "mean_mape_pct": 26.99
+    "mean_mape_pct": 26.99,
+    "mean_mape_pct_measured_only": 34.383
   },
   "held_out_calibrated_constants": {
     "return_temp_c": {
@@ -49,7 +50,8 @@
       "mape_pct": 0.645,
       "mae": 0.0069
     },
-    "mean_mape_pct": 5.743
+    "mean_mape_pct": 5.743,
+    "mean_mape_pct_measured_only": 6.752
   },
   "train_calibrated_constants": {
     "return_temp_c": {
@@ -72,8 +74,19 @@
       "mape_pct": 0.985,
       "mae": 0.0106
     },
-    "mean_mape_pct": 6.03
+    "mean_mape_pct": 6.03,
+    "mean_mape_pct_measured_only": 7.661
   },
+  "measured_quantities": [
+    "return_temp_c",
+    "cooling_power_kw",
+    "pue"
+  ],
+  "derived_not_measured": [
+    "server_inlet_temp_c",
+    "server_outlet_temp_c"
+  ],
+  "note": "Only return temperature, cooling power and PUE are sensor measurements in Frontier2023. Inlet/outlet temperature are derived by formula in dataset/download_dataset.py (inlet = supply + 2.5, outlet = inlet + 0.8 * IT MW), so their 'errors' are not evidence of fidelity; the inlet/outlet/ambient constants in the twin are assumptions, not calibrated values.",
   "calibrated_constants": {
     "HEAT_CAPTURE": 0.840443,
     "INLET_OFFSET_C": 2.516213,
@@ -85,6 +98,49 @@
     "FIXED_OVERHEAD_KW": 0.0,
     "FREE_COOL_MARGIN_C": 1000.0,
     "COP_MAX": 40.0
+  },
+  "synchronised_twin_one_step": {
+    "server_inlet_temp_c": {
+      "synced_twin_mape_pct": 0.008,
+      "persistence_mape_pct": 1.365,
+      "open_loop_physics_mape_pct": 0.083,
+      "measured_in_dataset": false,
+      "beats_persistence": true,
+      "meets_2pct_target": true
+    },
+    "server_outlet_temp_c": {
+      "synced_twin_mape_pct": 0.013,
+      "persistence_mape_pct": 1.917,
+      "open_loop_physics_mape_pct": 8.374,
+      "measured_in_dataset": false,
+      "beats_persistence": true,
+      "meets_2pct_target": true
+    },
+    "pue": {
+      "synced_twin_mape_pct": 0.182,
+      "persistence_mape_pct": 0.239,
+      "open_loop_physics_mape_pct": 0.645,
+      "measured_in_dataset": true,
+      "beats_persistence": true,
+      "meets_2pct_target": true
+    },
+    "return_temp_c": {
+      "synced_twin_mape_pct": 5.394,
+      "persistence_mape_pct": 2.756,
+      "open_loop_physics_mape_pct": 7.225,
+      "measured_in_dataset": true,
+      "beats_persistence": false,
+      "meets_2pct_target": false
+    },
+    "cooling_power_kw": {
+      "synced_twin_mape_pct": 3.983,
+      "persistence_mape_pct": 3.257,
+      "open_loop_physics_mape_pct": 12.386,
+      "measured_in_dataset": true,
+      "beats_persistence": false,
+      "meets_2pct_target": false
+    },
+    "held_out_steps": 14917
   },
   "report_target_mape_pct": 2.0
 }

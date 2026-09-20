@@ -26,6 +26,7 @@ sys.path.insert(0, PROJECT_ROOT)
 from src.digital_twin.physics_dynamics import (  # noqa: E402
     CoolingConstants, LiquidCoolingPhysics,
 )
+from src.digital_twin.synced_twin import SyncedTwin, TARGETS, consecutive_rows, mape  # noqa: E402
 
 DATA = os.path.join(PROJECT_ROOT, "dataset", "raw", "frontier2023_cooling_telemetry.parquet")
 OUT_CONST = os.path.join(PROJECT_ROOT, "src", "digital_twin", "calibrated_constants.json")
@@ -35,6 +36,13 @@ OUT_PROFILE = os.path.join(PROJECT_ROOT, "src", "digital_twin", "frontier_it_pro
 THERMAL_PARAMS = ["HEAT_CAPTURE", "INLET_OFFSET_C", "INLET_AMBIENT_COEF", "OUTLET_K"]
 POWER_PARAMS = ["PUMP_RATED_KW", "COP_A", "COP_B"]
 FIT_PARAMS = THERMAL_PARAMS + POWER_PARAMS
+
+# What is actually MEASURED in Frontier2023 (dataset/download_dataset.py): IT power, coolant supply and
+# return temperature, coolant flow, facility (cooling) power and PUE. Ambient temperature, rack inlet
+# (= supply + 2.5 C), rack outlet (= inlet + 0.8 x IT MW) and grid carbon are DERIVED by formula, so
+# agreement with them says nothing about the twin's fidelity to a real plant.
+MEASURED = ["return_temp_c", "cooling_power_kw", "pue"]
+DERIVED_NOT_MEASURED = ["server_inlet_temp_c", "server_outlet_temp_c"]
 # Frontier's reported PUE is exactly (IT + cooling) / IT, so there is no
 # separate fixed overhead term; the "free-cooling" chiller shortcut is
 # disabled because Frontier's ambient is below its supply temperature almost
@@ -89,6 +97,7 @@ def score(c: CoolingConstants, d: pd.DataFrame) -> dict:
         out[k] = {"mape_pct": round(float(np.mean(err / np.abs(t[k])) * 100.0), 3),
                   "mae": round(float(np.mean(err)), 4)}
     out["mean_mape_pct"] = round(float(np.mean([v["mape_pct"] for v in out.values()])), 3)
+    out["mean_mape_pct_measured_only"] = round(float(np.mean([out[k]["mape_pct"] for k in MEASURED])), 3)
     return out
 
 
@@ -97,6 +106,27 @@ def with_params(base: CoolingConstants, names, theta) -> CoolingConstants:
     for name, v in zip(names, theta):
         setattr(c, name, float(v))
     return c
+
+
+def evaluate_synced(calibrated: CoolingConstants, d: pd.DataFrame, split: int) -> dict:
+    """One-step-ahead (10 min) error of the synchronised twin vs repeating the last measurement,
+    fitted on rows before `split` and scored on rows from `split` on."""
+    P, T = predict(calibrated, d), truth(d)
+    x_in = np.column_stack([d.it_power_mw.values * 1000, d.flow_rate_lpm.values,
+                            d.fws_supply_temp_c.values, d.ambient_temp_c.values])
+    idx = consecutive_rows(pd.to_datetime(d.timestamp).values)
+    tr, te = idx[idx < split], idx[idx >= split]
+    twin = SyncedTwin().fit(T, P, x_in, tr)
+    out = {}
+    for k in TARGETS:
+        out[k] = {"synced_twin_mape_pct": round(mape(twin.predict(k, T, P, x_in, te), T[k][te]), 3),
+                  "persistence_mape_pct": round(mape(T[k][te - 1], T[k][te]), 3),
+                  "open_loop_physics_mape_pct": round(mape(P[k][te], T[k][te]), 3)}
+        out[k]["measured_in_dataset"] = k in MEASURED
+        out[k]["beats_persistence"] = out[k]["synced_twin_mape_pct"] < out[k]["persistence_mape_pct"]
+        out[k]["meets_2pct_target"] = out[k]["synced_twin_mape_pct"] <= 2.0
+    out["held_out_steps"] = int(len(te))
+    return out
 
 
 def main() -> None:
@@ -155,7 +185,14 @@ def main() -> None:
         "held_out_original_constants": before,
         "held_out_calibrated_constants": after,
         "train_calibrated_constants": after_train,
+        "measured_quantities": MEASURED,
+        "derived_not_measured": DERIVED_NOT_MEASURED,
+        "note": "Only return temperature, cooling power and PUE are sensor measurements in Frontier2023. "
+                "Inlet/outlet temperature are derived by formula in dataset/download_dataset.py (inlet = supply + 2.5, "
+                "outlet = inlet + 0.8 * IT MW), so their 'errors' are not evidence of fidelity; the inlet/outlet/"
+                "ambient constants in the twin are assumptions, not calibrated values.",
         "calibrated_constants": consts,
+        "synchronised_twin_one_step": evaluate_synced(calibrated, d, split),
         "report_target_mape_pct": 2.0,
     }
     with open(OUT_RESULT, "w", encoding="utf-8") as f:

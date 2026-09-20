@@ -11,7 +11,7 @@ to"), this document replaces it with what was actually measured.
 
 | Objective (report §2) | Result | Evidence |
 |---|---|---|
-| 1. Real-time two-way digital twin, fidelity ≈ 2% MAPE | PUE 0.65% and inlet temperature 0.08% MAPE meet the target; cooling power 12.4%, return 7.2%, outlet 8.4% do not | §1 · `results/twin_fidelity.json` |
+| 1. Real-time two-way digital twin, fidelity ≈ 2% MAPE | On the **measured** signals: PUE 0.65% (meets), cooling power 12.4% and return temperature 7.2% (do not; persistence alone gets 3.3% / 2.8%). Inlet/outlet temperature are derived by formula in the dataset and are not evidence | §1 · `results/twin_fidelity.json` |
 | 2. Predictive thermal surrogate + load forecasting | FNO R² 0.9997 / MAE 0.06 °C / 6.3 ms; load forecast beats persistence at ≥ 30 min (8.7% vs 9.4% MAPE at 60 min) | §2 · `results/fno_eval_metrics.json`, `results/load_forecast_metrics.json` |
 | 3. Safe RL, 15–30% less cooling energy vs a Guideline-36 baseline, no SLA violations | Selected agent −14.2% (CI 12.8–15.4%), 0 violations; 5-seed mean −9.2% ± 4.9%. **Physical upper bound in this twin: −14.4%**, of which the agent captures 98.4% | §3 · `results/rl_benchmark.json`, `results/energy_headroom.json` |
 | 4. Carbon- and water-aware optimisation | Load shifting −1.3…−2.1% facility CO₂; Safe-PPO −4.2…−7.3% water | §4 · `results/carbon_water.json` |
@@ -20,32 +20,65 @@ to"), this document replaces it with what was actually measured.
 
 ---
 
+## Data provenance: what is measured and what is not
+
+Frontier2023 (ORNL, CC-BY-4.0) is a *facility-level* dataset. `dataset/download_dataset.py` converts
+it to this project's schema, and several columns are **not** sensor readings:
+
+| Column | Source |
+|---|---|
+| IT power, coolant supply temperature, coolant return temperature, coolant flow, facility (cooling) power, total power, PUE | **measured** (from the workbook) |
+| Ambient temperature | **synthetic** annual + diurnal sinusoid (no ambient sensor is published) |
+| Rack inlet temperature | **derived**: supply + 2.5 °C |
+| Rack outlet temperature | **derived**: inlet + 0.8 × IT power (MW) |
+| Grid carbon intensity | **synthetic** diurnal model (`lambda_carbon_fetcher`) |
+
+Consequences that apply to everything below: agreement with inlet/outlet temperature is circular and is
+excluded from the fidelity claims; every ambient-dependent behaviour of the twin (chiller efficiency vs
+ambient, free-air cooling, water use) and every carbon result is a modelling assumption, not something the
+dataset validates; and the per-rack FNO target is analytic (§2).
+
 ## 1. Digital-twin fidelity (Objective 1)
 
-`scripts/calibrate_twin.py` fits the physics constants (`src/digital_twin/physics_dynamics.py`)
-to the real Frontier2023 measurements on the **first 70%** of the year (chronological) and
-reports error on the **held-out last 30%** (14,917 rows with flow > 1000 LPM and IT > 1 MW).
+`scripts/calibrate_twin.py` fits the physics constants (`src/digital_twin/physics_dynamics.py`) to the
+Frontier2023 **measurements** on the first 70% of the year (chronological) and reports error on the
+held-out last 30% (14,917 rows with flow > 1000 LPM and IT > 1 MW). Only the three measured quantities
+count as evidence:
 
-| Quantity | MAPE, original constants | MAPE, calibrated | Report target |
-|---|:---:|:---:|:---:|
-| Server inlet temperature | 2.55% | **0.08%** | ≈ 2% — met |
-| PUE | 3.78% | **0.65%** | ≈ 2% — met |
-| Cooling power | 91.71% | 12.39% | not met |
-| Return temperature | 7.66% | 7.23% | not met |
-| Outlet temperature | 29.25% | 8.37% | not met |
-| **Mean** | 26.99% | **5.74%** | |
+| Quantity (measured) | MAPE, original constants | MAPE, calibrated physics | Synchronised twin, 1 step ahead | Persistence (repeat last reading) | Report target |
+|---|:---:|:---:|:---:|:---:|:---:|
+| PUE | 3.78% | **0.65%** | **0.18%** | 0.24% | ≈ 2% — **met** |
+| Cooling power | 91.7% | 12.4% | 4.0% | 3.26% | not met |
+| Return temperature | 7.7% | 7.2% | 5.4% | 2.76% | not met |
+| **Mean of the three** | 34.4% | **6.8%** | | | |
 
-Calibration also removed two structural mismatches with the real plant: Frontier's PUE is
-exactly (IT + cooling) / IT (no separate overhead term), and its ambient temperature is below
-its supply temperature almost all year, so a "free-cooling chiller shortcut" branch that
-fired on nearly every row was disabled. The remaining error in return/outlet temperature comes
-from a static model with no thermal inertia.
+* The calibrated physics is a static map from operating point to response. It reproduces PUE to well under
+  2%, but cooling power and return temperature move on the 10-minute scale in ways the available signals do
+  not explain.
+* A **synchronised twin** (`src/digital_twin/synced_twin.py`: physics prediction + the last three measured
+  values + the change in operating point, ridge regression) is the usual way a digital twin tracks its plant.
+  It improves PUE (0.18%) but does **not** beat simply repeating the last measurement for return temperature
+  or cooling power, so for those two no predictor built here reaches the ≈ 2% target: the best available is
+  persistence at 2.76% (return) and 3.26% (cooling).
+* Inlet and outlet temperature are derived by formula in the dataset (see provenance above); the twin's
+  inlet offset (2.5 °C), inlet-ambient coefficient and outlet coefficient are therefore **assumptions** that
+  reproduce that derivation, not calibrated values. They are excluded from the table.
 
-The RL environment and the live IoT simulator now use this **same** calibrated physics (a
-single constant, `ZONE_SCALE = 1000`, converts hall scale to the per-rack values the CRACs
-report). Before this, the live simulator used a separate rack-scale model with hall-sized pump
-and fan ratings (live PUE ≈ 2.0) and fed the trained agent observations it had never seen;
-live PUE is now ≈ 1.05 (Frontier measured mean: 1.055).
+Calibration also removed two structural mismatches with the real plant: Frontier's PUE is exactly
+(IT + cooling) / IT (no separate overhead term), and a "free-cooling chiller shortcut" branch (which fires
+when ambient is well below supply) was disabled because it fitted nothing in the data. Note that ambient is
+synthetic, so the twin's ambient dependence is not validated.
+
+The RL environment and the live IoT simulator use this **same** calibrated physics (a single constant,
+`ZONE_SCALE = 1000`, converts hall scale to the per-rack values the CRACs report). Before this, the live
+simulator used a separate rack-scale model with hall-sized pump and fan ratings (live PUE ≈ 2.0) and fed the
+trained agent observations it had never seen; live PUE is now ≈ 1.05 (Frontier measured mean: 1.055).
+
+**Supply-temperature sensitivity of the real plant.** Regressing measured cooling power on IT load, flow,
+wet-bulb temperature and supply temperature over the whole year gives −1.2 kW per °C of supply temperature
+(about 0.2% of mean cooling power per °C, t = −15). Raising the supply temperature therefore saves very
+little energy at Frontier, which is why no setpoint controller can save 15–30% (§3). (The wet-bulb term
+uses the dataset's synthetic ambient, so this is a rough control variable, not a validated coefficient.)
 
 ## 2. Predictive layer (Objective 2)
 
@@ -112,6 +145,12 @@ What this shows:
   are controllable. A 15–30% saving would need a plant whose cooling energy responds more strongly to
   setpoints than Frontier's does. The five-seed mean (9.2%) is lower than the bound because of seed
   variance, not because the bound is out of reach for a well-trained agent.
+* **Where the RL saving comes from is a modelling assumption.** The agent's savings come from minimum
+  pump/fan speed, a fully open free-air valve and the warmest safe supply. The pump/fan power law and the
+  free-air effect (a fully open valve removes up to 30% of the chiller share when ambient is cool) are the
+  environment's physics, not something Frontier2023 validates (the dataset has no economizer signal and its
+  ambient temperature is synthetic). Read the percentages as "saving relative to a Guideline-36-style rule
+  inside this twin".
 * **The Lagrangian penalty alone did not deliver "no violations".** Without the shield only
   some seeds found a safe policy; with a soft penalty the SLA is met on average, not
   guaranteed. Adding a model-based **safety shield** (`src/ai/rl/safety_shield.py`) that vetoes
@@ -236,4 +275,4 @@ python scripts/make_result_charts.py                   # presentation/*.png
    grid profile shaped like `lambda_carbon_fetcher`); real grid data and job traces are absent.
 6. **Seed sensitivity:** five seeds per method; the spread (3.4–14.2%) is large.
 7. **Cloud:** validated on LocalStack Community only; Pro-only services and the production state machine are unverified, and nothing has been deployed to AWS (§6).
-8. Return- and outlet-temperature fidelity (7–8%) misses the ≈ 2% target: the model is static.
+8. Return-temperature (7.2%) and cooling-power (12.4%) fidelity miss the ≈ 2% target and cannot beat persistence in one-step-ahead form; inlet/outlet temperature, ambient temperature and grid carbon in the dataset are derived, not measured (see the provenance table).

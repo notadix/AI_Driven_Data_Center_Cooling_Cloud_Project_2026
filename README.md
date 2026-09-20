@@ -18,11 +18,11 @@
 Everything below is measured by a script in this repo and recorded in `results/`
 (see **[`docs/RESULTS.md`](docs/RESULTS.md)** for method, per-seed numbers and limitations;
 figures are in **[`presentation/`](presentation/)**). All control results are from the
-calibrated simulator; nothing has run on a physical plant or on AWS.
+calibrated simulator; nothing has run on a physical plant or on AWS. Frontier2023's ambient temperature, rack inlet/outlet temperature and grid carbon are derived by formula, not measured (see `docs/RESULTS.md`).
 
 | Report objective | Measured result | Target met? |
 |---|---|:---:|
-| Twin fidelity (held-out 30% of Frontier2023) | PUE 0.65%, inlet temp 0.08% MAPE; cooling power 12.4%, return 7.2%, outlet 8.4% | partly (≈2% target) |
+| Twin fidelity (held-out 30%, measured signals only) | PUE 0.65% MAPE (meets ≈2%); cooling power 12.4% and return temperature 7.2% do not. Inlet/outlet temperature in the dataset are derived by formula and are not counted | partly |
 | FNO thermal surrogate | R² 0.9997, MAE 0.06 °C, 6.3 ms (target is an analytic thermal model, not sensors) | yes, with caveat |
 | IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence, 13.8% hour-of-day mean | modest gain |
 | Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical upper bound is -14.4%, so the agent captures 98%; the 15–30% target is not attainable in this twin | no (bounded by the model) |

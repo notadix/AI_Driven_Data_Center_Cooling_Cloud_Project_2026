@@ -26,11 +26,14 @@ def test_fidelity_report_shows_calibration_helps_on_held_out_data():
     with open(os.path.join(ROOT, "results", "twin_fidelity.json"), encoding="utf-8") as f:
         r = json.load(f)
     before, after = r["held_out_original_constants"], r["held_out_calibrated_constants"]
-    assert after["mean_mape_pct"] < before["mean_mape_pct"]
+    assert after["mean_mape_pct_measured_only"] < before["mean_mape_pct_measured_only"]
     assert after["cooling_power_kw"]["mape_pct"] < before["cooling_power_kw"]["mape_pct"]
-    # The report's ~2% MAPE target is met for PUE and server inlet temperature.
+    # The report's ~2% MAPE target is met for PUE, the one measured quantity the physics reproduces that well.
     assert after["pue"]["mape_pct"] <= r["report_target_mape_pct"]
-    assert after["server_inlet_temp_c"]["mape_pct"] <= r["report_target_mape_pct"]
+    # Inlet/outlet temperature are derived by formula in the dataset (no rack sensors): they must be flagged
+    # as such and must not be presented as measured evidence.
+    assert set(r["derived_not_measured"]) == {"server_inlet_temp_c", "server_outlet_temp_c"}
+    assert set(r["measured_quantities"]) == {"return_temp_c", "cooling_power_kw", "pue"}
     assert r["rows"]["held_out"] > 10000
 
 
@@ -78,3 +81,18 @@ class TestDriftReference:
         scores = det._compute_drift_scores(records)
         detected, severity = det._classify_severity(scores)
         assert detected and severity in ("HIGH", "CRITICAL")
+
+
+def test_dataset_loader_documents_which_columns_are_derived():
+    """The fidelity claims depend on this: inlet/outlet/ambient/carbon are formulas, not sensors."""
+    src = open(os.path.join(ROOT, "dataset", "download_dataset.py"), encoding="utf-8").read()
+    assert "inlet_c = supply_c + 2.5" in src and "Derived columns: not measured" in src
+
+
+def test_synchronised_twin_is_reported_honestly_against_persistence():
+    with open(os.path.join(ROOT, "results", "twin_fidelity.json"), encoding="utf-8") as f:
+        r = json.load(f)["synchronised_twin_one_step"]
+    assert r["pue"]["beats_persistence"] and r["pue"]["meets_2pct_target"]
+    # return temperature and cooling power do NOT beat repeating the last reading; the result must say so
+    assert not r["return_temp_c"]["beats_persistence"] and not r["cooling_power_kw"]["beats_persistence"]
+    assert r["return_temp_c"]["measured_in_dataset"] and not r["server_inlet_temp_c"]["measured_in_dataset"]
