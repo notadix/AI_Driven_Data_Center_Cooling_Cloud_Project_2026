@@ -182,6 +182,62 @@ What this shows:
   load-staged pump/fan, economizer enable). It is not a certified implementation of ASHRAE
   Guideline 36.
 
+## 3b. What each safety component contributes (ablation)
+
+`scripts/ablation_study.py` → `results/ablation_study.json`. Each component (model-based shield, online
+inlet calibrator, sensor guard) is switched on and off against six conditions, on the same 30 unseen days as §3,
+for the selected Safe-PPO agent and for a **fixed rule** (minimum pump and fan, valve open, warmest supply; no
+learning). Cells are *cooling saving vs the Guideline-36-style rule / SLA-violation rate*.
+
+**Selected Safe-PPO agent**
+
+| Condition | no safety layer | shield | shield + calibrator | shield + calibrator + guard |
+|---|---|---|---|---|
+| nominal | 15.1% / 19.7% | 14.2% / 0.0% | 14.2% / 0.0% | 14.2% / 0.0% |
+| drift +1.5 °C | 15.5% / 42.2% | 14.6% / 42.2% | 13.6% / 0.0% | 13.6% / 0.0% |
+| drift +3 °C | 16.0% / 55.5% | 15.1% / 55.5% | 12.8% / 0.3% | 12.8% / 0.3% |
+| flow-coupled plant | 15.7% / 47.3% | 12.6% / 0.0% | 12.6% / 0.0% | 12.6% / 0.0% |
+| sensor faults | 14.4% / 20.1% | 13.4% / 0.2% | 13.5% / 0.2% | 13.5% / 0.0% |
+| drift +1.5 °C and faults | 14.9% / 43.2% | 14.0% / 42.8% | 12.9% / 0.5% | 12.9% / 0.0% |
+
+**Does the learned policy add anything over a fixed rule?**
+
+| Condition | RL + shield | fixed rule + shield | fixed rule, no shield |
+|---|---|---|---|
+| nominal | 14.2% / 0.0% | 14.4% / 0.0% | 15.3% / 19.7% |
+| drift +1.5 °C | 14.6% / 42.2% | 14.8% / 42.2% | 15.8% / 42.2% |
+| drift +3 °C | 15.1% / 55.5% | 15.3% / 55.5% | 16.3% / 55.5% |
+| flow-coupled plant | 12.6% / 0.0% | 12.8% / 0.0% | 15.9% / 47.4% |
+| sensor faults | 13.4% / 0.2% | 14.4% / 0.1% | 15.4% / 19.7% |
+| drift +1.5 °C and faults | 14.0% / 42.8% | 15.0% / 41.8% | 15.9% / 42.2% |
+
+What this shows:
+
+* **The shield is what makes the savings usable.** Without it the same actions save 15–16% but violate the SLA on 20% of
+  steps on a plant that matches the twin, and on 42–55% when it does not. The price of the guarantee is about one
+  percentage point of saving.
+* **The online calibrator is what keeps the guarantee under plant drift.** With a plant that runs 1.5 °C or 3 °C warmer
+  than the twin, the static shield violates on 42% / 55% of steps; the calibrated shield on 0.0% / 0.3%, for roughly 1–2
+  points of saving.
+* **The shield generalises to a plant it was not built for:** a flow-coupled plant (slower pump ⇒ warmer racks; an
+  assumed scenario, `flow_coupling` in `cooling_sim_env.py`) gives 0.0% violations, at a lower saving (12.6%).
+* **The sensor guard helps modestly.** Under bursts of NaN and 3× spike faults, violations go from 0.18% to 0.05% with the
+  full stack; its bigger role is to stop a corrupt observation reaching the policy at all. Faults it cannot see
+  (a spike on a channel whose range check is wider than the spike) still get through.
+* **The learned policy adds no measurable saving over the fixed rule.** Under the shield the fixed rule matches or beats
+  the RL agent in every condition (by 0.2–1.0 points). In this simulator the optimum is nearly constant (push every
+  actuator to its limit and let the shield clip it), so there is nothing for a learned policy to exploit; the
+  patentable and evidenced value is the safety layer, not the RL.
+* A one-step model-predictive controller on the same physics (`src/ai/rl/mpc_controller.py`) is also no better than the
+  fixed rule in the flow-coupled plant (~20.9 vs 20.7 MWh/day), so the flow-coupled scenario does not change this.
+
+Two negative results, kept so nobody repeats them: training Safe-PPO **three times longer** (1800 vs 600 episodes, same
+5 seeds) did not help (mean saving 8.8% ± 4.9 vs 9.2% ± 4.9, 0 violations); and a better predictor for the two
+signals that miss the 2% fidelity target (`scripts/probe_twin_predictors.py` → `results/twin_predictor_probe.json`):
+a gradient-boosted residual model reaches 2.81% for cooling power (persistence
+3.26%) and 3.75% for return temperature (persistence
+2.76%), so neither reaches 2%.
+
 ## 4. Carbon and water (Objective 4)
 
 `scripts/evaluate_carbon_water.py`: 20 simulated days per cell, per-facility climate and grid
@@ -286,6 +342,8 @@ python scripts/energy_headroom.py                      # physical upper bound on
 python scripts/train_fno_pde.py                        # FNO vs the 2D transport solver
 python scripts/train_load_forecaster.py
 python scripts/compare_forecast_models.py
+python scripts/ablation_study.py                      # component ablation
+python scripts/probe_twin_predictors.py
 python scripts/measure_control_latency.py
 python scripts/evaluate_carbon_water.py
 python scripts/evaluate_transfer.py
@@ -305,6 +363,7 @@ python scripts/make_result_charts.py                   # presentation/*.png
 4. **The FNO is validated against a 2D transport solver** (§2), not against measured rack temperatures or 3D CFD.
 5. **Carbon results rest on assumptions** (20% deferrable load, 8 h window, synthetic diurnal
    grid profile shaped like `lambda_carbon_fetcher`); real grid data and job traces are absent.
-6. **Seed sensitivity:** five seeds per method; the spread (3.4–14.2%) is large.
+6. **Seed sensitivity:** five seeds per method; the spread (3.4–14.2%) is large. Training longer does not reduce it (§3b), and a fixed rule under the shield does as well as the
+   learned agent, so the RL does not by itself explain the saving.
 7. **Cloud:** validated on LocalStack Community only; Pro-only services and the production state machine are unverified, and nothing has been deployed to AWS (§6).
 8. Return-temperature (7.2%) and cooling-power (12.4%) fidelity miss the ≈ 2% target and cannot beat persistence in one-step-ahead form; inlet/outlet temperature, ambient temperature and grid carbon in the dataset are derived, not measured (see the provenance table).

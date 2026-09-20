@@ -181,10 +181,13 @@ class PhysicsSimulator:
                 + math.sin(2 * math.pi * (hour - 8) / 24.0) * 0.4
                 + random.gauss(0, 0.15)))
         )
+        # it_power_kw is ONE representative rack (10-28 kW); steps are the same size as the RL environment's
+        # hall-scale walk (150 kW drift / 80 kW noise) divided by ZONE_SCALE. The old +-200 / 100 steps were
+        # 10x the whole range, so the load just alternated between the two clamps.
         self.it_power_kw = float(
             max(10.0, min(28.0, self.it_power_kw
-                + math.sin(2 * math.pi * (hour - 9) / 24.0) * 200.0
-                + random.gauss(0, 100.0)))
+                + math.sin(2 * math.pi * (hour - 9) / 24.0) * 0.15
+                + random.gauss(0, 0.08)))
         )
         self.carbon_gco2_kwh = float(
             max(120.0, min(580.0, self.carbon_gco2_kwh + random.gauss(0, 10.0)))

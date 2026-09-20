@@ -72,6 +72,8 @@ export default function Dashboard() {
   const coolingPowerMw = (telemetry.cooling_power_kw / 1000.0).toFixed(2);
   const totalPowerMw = ((telemetry.it_power_kw + telemetry.cooling_power_kw) / 1000.0).toFixed(2);
   const deltaT = (telemetry.return_temp_c - telemetry.fws_supply_temp_c).toFixed(1);
+  const coolingSharePct = ((100 * telemetry.cooling_power_kw) / Math.max(1, telemetry.it_power_kw + telemetry.cooling_power_kw)).toFixed(1);
+  const racksOutside = spatialGrid.filter((n) => n.ashrae_status !== 'NORMAL').length;
 
   return (
     <div className="min-h-screen bg-[#070B14] text-slate-100 p-4 md:p-6 space-y-6 cyber-grid">
@@ -173,7 +175,7 @@ export default function Dashboard() {
             <div className="text-2xl font-black font-mono text-slate-100">
               {coolingPowerMw} <span className="text-xs font-normal text-slate-400">MW</span>
             </div>
-            <span className="text-[10px] text-cyan-400 font-mono">11.8% of Facility</span>
+            <span className="text-[10px] text-cyan-400 font-mono">{coolingSharePct}% of Facility</span>
           </div>
         </div>
 
@@ -342,7 +344,9 @@ export default function Dashboard() {
         <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
           {alarms.length === 0 ? (
             <div className="text-xs text-slate-500 italic py-1">
-              All 64 racks within ASHRAE thermal SLA bounds (18°C – 27°C). No active violations.
+              {racksOutside === 0
+                ? `All ${spatialGrid.length} racks within ASHRAE thermal SLA bounds (18°C – 27°C). No active violations.`
+                : `${racksOutside} of ${spatialGrid.length} racks outside 18°C – 27°C. Rack temperatures are the live zone inlet plus a fixed illustrative per-rack offset; the controller enforces the limit on the zone inlet.`}
             </div>
           ) : (
             alarms.map((alarm) => (

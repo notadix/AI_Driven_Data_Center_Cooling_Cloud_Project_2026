@@ -30,6 +30,7 @@ calibrated simulator; nothing has run on a physical plant or on AWS. Frontier202
 | Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | — |
 | Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) | small |
 | Water | Safe-PPO -4.2% to -7.3% vs baseline | — |
+| Safety layer ablation | shield: SLA violations 20% -> 0%; online calibrator: 42-55% -> 0-0.3% under plant drift; shield also holds (0%) on a flow-coupled plant. A fixed rule under the shield saves as much as the RL agent, so the evidenced value is the safety layer, not the RL (docs/RESULTS.md §3b) | yes |
 | Transfer across facilities | zero-shot -9.5% with 0 violations | yes |
 | Fault tolerance | sensor-fault guard + online calibration restore safety under drift | yes |
 | LocalStack live run | S3/SNS/EventBridge/Step Functions verified; Timestream falls back to memory (Pro-only on LocalStack) | yes |

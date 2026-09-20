@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API_BASE, WS_BASE } from '../config';
+import { API_BASE, WS_BASE, ZONE_SCALE } from '../config';
 
 /**
  * Resilient custom React hook for high-frequency telemetry streaming.
@@ -144,8 +144,12 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               };
             }
             const readings = Object.values(cracPowerRef.current);
-            const totalItMw = readings.reduce((s, r) => s + r.it_mw, 0);
-            const totalCoolingMw = readings.reduce((s, r) => s + r.cooling_mw, 0);
+            // Hall-scale figures, same convention as the backend (forecast, carbon plan, controller): the mean
+            // representative-rack reading times ZONE_SCALE. Summing the four raw readings (~0.08 MW) understated
+            // the load ~250x and disagreed with the forecast panel.
+            const nZones = Math.max(1, readings.length);
+            const totalItMw = (readings.reduce((s, r) => s + r.it_mw, 0) / nZones) * ZONE_SCALE;
+            const totalCoolingMw = (readings.reduce((s, r) => s + r.cooling_mw, 0) / nZones) * ZONE_SCALE;
 
             setTelemetry((prev) => ({
               ...prev,
@@ -249,8 +253,8 @@ export function useTelemetryWebSocket(facilityId = 'DC-EAST-01') {
               setTelemetry((prev) => ({
                 ...prev,
                 ...rec,
-                it_power_kw: rec.it_power_mw != null ? rec.it_power_mw * 1000.0 : prev.it_power_kw,
-                cooling_power_kw: rec.cooling_power_mw != null ? rec.cooling_power_mw * 1000.0 : prev.cooling_power_kw,
+                it_power_kw: rec.it_power_mw != null ? rec.it_power_mw * 1000.0 * ZONE_SCALE : prev.it_power_kw,
+                cooling_power_kw: rec.cooling_power_mw != null ? rec.cooling_power_mw * 1000.0 * ZONE_SCALE : prev.cooling_power_kw,
               }));
             }
           }

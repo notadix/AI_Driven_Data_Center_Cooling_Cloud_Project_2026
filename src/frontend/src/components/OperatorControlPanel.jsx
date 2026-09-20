@@ -35,7 +35,18 @@ export default function OperatorControlPanel({
         if (res.ok) {
           const json = await res.json();
           const crac = json.data?.cracs?.find((c) => c.crac_id === selectedCrac);
-          if (crac && !cancelled) setActualMode(crac.mode);
+          if (crac && !cancelled) {
+            setActualMode(crac.mode);
+            // While the policy is in control, keep the sliders at the unit's live settings so that switching
+            // to MANUAL and pressing Apply does not jump the actuators to arbitrary defaults.
+            if (crac.mode === 'auto') {
+              const live = (v, lo, hi, fallback) => (Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : fallback);
+              setPumpSpeed((p) => live(crac.current_pump_pct, 35, 100, p));
+              setFanSpeed((p) => live(crac.current_fan_pct, 30, 100, p));
+              setValveSplit((p) => live(crac.current_valve_pct, 0, 100, p));
+              setDeltaSupply(0.0);
+            }
+          }
         }
       } catch {
         // Backend unreachable -- keep the last known mode rather than reset it.

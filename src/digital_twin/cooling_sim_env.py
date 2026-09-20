@@ -40,8 +40,14 @@ class DataCenterCoolingEnv(gym.Env):
         it_profile_kw: Optional[Sequence[float]] = None,
         inlet_bias_c: float = 0.0,
         climate: bool = False,
+        flow_coupling: float = 0.0,
     ):
         """
+        flow_coupling : fraction of the coolant's temperature rise (return minus supply) that shows up at
+                        the rack inlet. 0 (default) reproduces the original plant, in which inlet
+                        temperature is independent of flow. > 0 is an ASSUMED stress scenario in which
+                        slowing the pump warms the racks, so pump speed and supply setpoint trade off
+                        against each other (Frontier2023 has no rack-level data to calibrate it).
         climate       : if True the ambient temperature follows the region's climate
                         (used to model different facilities); default False keeps the
                         original 10-32 degC range.
@@ -61,6 +67,7 @@ class DataCenterCoolingEnv(gym.Env):
         # (calibrated) twin predicts, e.g. fouled heat exchangers. 0 = plant matches the twin.
         self.inlet_bias_c = float(inlet_bias_c)
         self.climate = bool(climate)
+        self.flow_coupling = float(flow_coupling)
         self._step = 0
         self._hour0 = 0.0
         self._last_chiller_kw = 0.0
@@ -91,6 +98,9 @@ class DataCenterCoolingEnv(gym.Env):
     def _obs(self) -> np.ndarray:
         flow_lpm = self.physics.flow_lpm(self.pump_pct)
         ret, inlet, outlet = self.physics.thermal_balance(self.it_kw, self.supply_c, flow_lpm, self.ambient_c)
+        if self.flow_coupling:
+            inlet += self.flow_coupling * (ret - self.supply_c)
+            outlet += self.flow_coupling * (ret - self.supply_c)
 
         # Free-air economizer mixing: the valve blends ambient air into the
         # supply loop when outside conditions are cool enough to help, cutting

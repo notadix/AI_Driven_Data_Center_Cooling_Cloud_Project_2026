@@ -11,3 +11,7 @@ export const API_BASE = envBase ? envBase.replace(/\/$/, '') : `${httpProto}//${
 export const WS_BASE = envBase
   ? envBase.replace(/\/$/, '').replace(/^http/, 'ws')
   : `${wsProto}//${host}:8000`;
+
+// Each simulated CRAC reports one representative rack (~10-28 kW); the backend scales it by this factor to
+// the hall-scale load of the zone (src/digital_twin/physics_dynamics.py ZONE_SCALE). Keep in sync.
+export const ZONE_SCALE = 1000;

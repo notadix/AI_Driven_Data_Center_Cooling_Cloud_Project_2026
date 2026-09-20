@@ -1,0 +1,1227 @@
+{
+  "protocol": {
+    "seeds": [
+      5000,
+      5029
+    ],
+    "episodes": 30,
+    "conditions": {
+      "nominal": {
+        "bias": 0.0,
+        "coupling": 0.0,
+        "faults": false
+      },
+      "drift_1.5C": {
+        "bias": 1.5,
+        "coupling": 0.0,
+        "faults": false
+      },
+      "drift_3.0C": {
+        "bias": 3.0,
+        "coupling": 0.0,
+        "faults": false
+      },
+      "coupled_0.15": {
+        "bias": 0.0,
+        "coupling": 0.15,
+        "faults": false
+      },
+      "faults": {
+        "bias": 0.0,
+        "coupling": 0.0,
+        "faults": true
+      },
+      "drift+faults": {
+        "bias": 1.5,
+        "coupling": 0.0,
+        "faults": true
+      }
+    },
+    "configs": {
+      "none": {
+        "shield": false,
+        "calibrator": false,
+        "guard": false
+      },
+      "guard": {
+        "shield": false,
+        "calibrator": false,
+        "guard": true
+      },
+      "shield": {
+        "shield": true,
+        "calibrator": false,
+        "guard": false
+      },
+      "shield+calibrator": {
+        "shield": true,
+        "calibrator": true,
+        "guard": false
+      },
+      "shield+guard": {
+        "shield": true,
+        "calibrator": false,
+        "guard": true
+      },
+      "full (shield+calibrator+guard)": {
+        "shield": true,
+        "calibrator": true,
+        "guard": true
+      }
+    }
+  },
+  "results": {
+    "nominal": {
+      "gl36_reference": {
+        "cooling_kwh": 25819.8,
+        "violation_rate": 0.0007
+      },
+      "policies": {
+        "rl": {
+          "none": {
+            "cooling_kwh": 21734.8,
+            "saving_vs_gl36_pct": 15.09,
+            "saving_ci95": [
+              13.5326,
+              16.5276
+            ],
+            "violation_pct": 19.699,
+            "violation_ci95": [
+              10.4161,
+              30.4867
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21734.8,
+            "saving_vs_gl36_pct": 15.09,
+            "saving_ci95": [
+              13.5326,
+              16.5276
+            ],
+            "violation_pct": 19.699,
+            "violation_ci95": [
+              10.4161,
+              30.4867
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22047.6,
+            "saving_vs_gl36_pct": 14.16,
+            "saving_ci95": [
+              12.773,
+              15.444
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22048.0,
+            "saving_vs_gl36_pct": 14.16,
+            "saving_ci95": [
+              12.7716,
+              15.442
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22047.6,
+            "saving_vs_gl36_pct": 14.16,
+            "saving_ci95": [
+              12.773,
+              15.444
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22048.0,
+            "saving_vs_gl36_pct": 14.16,
+            "saving_ci95": [
+              12.7716,
+              15.442
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          }
+        },
+        "fixed": {
+          "none": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.31,
+            "saving_ci95": [
+              13.8296,
+              16.667
+            ],
+            "violation_pct": 19.699,
+            "violation_ci95": [
+              10.4161,
+              30.4867
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.31,
+            "saving_ci95": [
+              13.8296,
+              16.667
+            ],
+            "violation_pct": 19.699,
+            "violation_ci95": [
+              10.4161,
+              30.4867
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22003.0,
+            "saving_vs_gl36_pct": 14.38,
+            "saving_ci95": [
+              13.0752,
+              15.5826
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22003.3,
+            "saving_vs_gl36_pct": 14.38,
+            "saving_ci95": [
+              13.0745,
+              15.5811
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.352,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22003.0,
+            "saving_vs_gl36_pct": 14.38,
+            "saving_ci95": [
+              13.0752,
+              15.5826
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22003.3,
+            "saving_vs_gl36_pct": 14.38,
+            "saving_ci95": [
+              13.0745,
+              15.5811
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.352,
+            "fallback_rate": 0.0
+          }
+        }
+      }
+    },
+    "drift_1.5C": {
+      "gl36_reference": {
+        "cooling_kwh": 25981.1,
+        "violation_rate": 0.0
+      },
+      "policies": {
+        "rl": {
+          "none": {
+            "cooling_kwh": 21738.3,
+            "saving_vs_gl36_pct": 15.53,
+            "saving_ci95": [
+              13.8689,
+              17.0681
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21738.3,
+            "saving_vs_gl36_pct": 15.53,
+            "saving_ci95": [
+              13.8689,
+              17.0681
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22051.0,
+            "saving_vs_gl36_pct": 14.61,
+            "saving_ci95": [
+              13.1178,
+              15.9682
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22369.6,
+            "saving_vs_gl36_pct": 13.56,
+            "saving_ci95": [
+              12.269,
+              14.7588
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.517,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22051.0,
+            "saving_vs_gl36_pct": 14.61,
+            "saving_ci95": [
+              13.1178,
+              15.9682
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22369.6,
+            "saving_vs_gl36_pct": 13.56,
+            "saving_ci95": [
+              12.269,
+              14.7588
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.517,
+            "fallback_rate": 0.0
+          }
+        },
+        "fixed": {
+          "none": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.77,
+            "saving_ci95": [
+              14.2121,
+              17.2121
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.77,
+            "saving_ci95": [
+              14.2121,
+              17.2121
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22003.0,
+            "saving_vs_gl36_pct": 14.85,
+            "saving_ci95": [
+              13.4748,
+              16.1172
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22321.7,
+            "saving_vs_gl36_pct": 13.8,
+            "saving_ci95": [
+              12.5803,
+              14.9138
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.518,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22003.0,
+            "saving_vs_gl36_pct": 14.85,
+            "saving_ci95": [
+              13.4748,
+              16.1172
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22321.7,
+            "saving_vs_gl36_pct": 13.8,
+            "saving_ci95": [
+              12.5803,
+              14.9138
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.518,
+            "fallback_rate": 0.0
+          }
+        }
+      }
+    },
+    "drift_3.0C": {
+      "gl36_reference": {
+        "cooling_kwh": 26149.4,
+        "violation_rate": 0.0
+      },
+      "policies": {
+        "rl": {
+          "none": {
+            "cooling_kwh": 21741.5,
+            "saving_vs_gl36_pct": 16.0,
+            "saving_ci95": [
+              14.2689,
+              17.6104
+            ],
+            "violation_pct": 55.532,
+            "violation_ci95": [
+              42.0365,
+              68.798
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21741.5,
+            "saving_vs_gl36_pct": 16.0,
+            "saving_ci95": [
+              14.2689,
+              17.6104
+            ],
+            "violation_pct": 55.532,
+            "violation_ci95": [
+              42.0365,
+              68.798
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22054.3,
+            "saving_vs_gl36_pct": 15.08,
+            "saving_ci95": [
+              13.5132,
+              16.5123
+            ],
+            "violation_pct": 55.532,
+            "violation_ci95": [
+              42.0365,
+              68.798
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22744.6,
+            "saving_vs_gl36_pct": 12.82,
+            "saving_ci95": [
+              11.6358,
+              13.9021
+            ],
+            "violation_pct": 0.301,
+            "violation_ci95": [
+              0.1157,
+              0.5093
+            ],
+            "shield_rate": 0.979,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22054.3,
+            "saving_vs_gl36_pct": 15.08,
+            "saving_ci95": [
+              13.5132,
+              16.5123
+            ],
+            "violation_pct": 55.532,
+            "violation_ci95": [
+              42.0365,
+              68.798
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22744.6,
+            "saving_vs_gl36_pct": 12.82,
+            "saving_ci95": [
+              11.6358,
+              13.9021
+            ],
+            "violation_pct": 0.301,
+            "violation_ci95": [
+              0.1157,
+              0.5093
+            ],
+            "shield_rate": 0.979,
+            "fallback_rate": 0.0
+          }
+        },
+        "fixed": {
+          "none": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 16.26,
+            "saving_ci95": [
+              14.6341,
+              17.7705
+            ],
+            "violation_pct": 55.463,
+            "violation_ci95": [
+              41.9907,
+              68.7506
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 16.26,
+            "saving_ci95": [
+              14.6341,
+              17.7705
+            ],
+            "violation_pct": 55.463,
+            "violation_ci95": [
+              41.9907,
+              68.7506
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22003.0,
+            "saving_vs_gl36_pct": 15.34,
+            "saving_ci95": [
+              13.8878,
+              16.6724
+            ],
+            "violation_pct": 55.463,
+            "violation_ci95": [
+              41.9907,
+              68.7506
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22696.0,
+            "saving_vs_gl36_pct": 13.07,
+            "saving_ci95": [
+              11.9793,
+              14.0671
+            ],
+            "violation_pct": 0.301,
+            "violation_ci95": [
+              0.1157,
+              0.5324
+            ],
+            "shield_rate": 0.982,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22003.0,
+            "saving_vs_gl36_pct": 15.34,
+            "saving_ci95": [
+              13.8878,
+              16.6724
+            ],
+            "violation_pct": 55.463,
+            "violation_ci95": [
+              41.9907,
+              68.7506
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22696.0,
+            "saving_vs_gl36_pct": 13.07,
+            "saving_ci95": [
+              11.9793,
+              14.0671
+            ],
+            "violation_pct": 0.301,
+            "violation_ci95": [
+              0.1157,
+              0.5324
+            ],
+            "shield_rate": 0.982,
+            "fallback_rate": 0.0
+          }
+        }
+      }
+    },
+    "coupled_0.15": {
+      "gl36_reference": {
+        "cooling_kwh": 26027.6,
+        "violation_rate": 0.0005
+      },
+      "policies": {
+        "rl": {
+          "none": {
+            "cooling_kwh": 21735.2,
+            "saving_vs_gl36_pct": 15.66,
+            "saving_ci95": [
+              13.982,
+              17.2234
+            ],
+            "violation_pct": 47.292,
+            "violation_ci95": [
+              35.162,
+              59.4219
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21735.2,
+            "saving_vs_gl36_pct": 15.66,
+            "saving_ci95": [
+              13.982,
+              17.2234
+            ],
+            "violation_pct": 47.292,
+            "violation_ci95": [
+              35.162,
+              59.4219
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22707.7,
+            "saving_vs_gl36_pct": 12.64,
+            "saving_ci95": [
+              11.4222,
+              13.7599
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.552,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22709.4,
+            "saving_vs_gl36_pct": 12.64,
+            "saving_ci95": [
+              11.4169,
+              13.754
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.552,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22707.7,
+            "saving_vs_gl36_pct": 12.64,
+            "saving_ci95": [
+              11.4222,
+              13.7599
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.552,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22709.4,
+            "saving_vs_gl36_pct": 12.64,
+            "saving_ci95": [
+              11.4169,
+              13.754
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.552,
+            "fallback_rate": 0.0
+          }
+        },
+        "fixed": {
+          "none": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.89,
+            "saving_ci95": [
+              14.307,
+              17.3472
+            ],
+            "violation_pct": 47.384,
+            "violation_ci95": [
+              35.2778,
+              59.4913
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.89,
+            "saving_ci95": [
+              14.307,
+              17.3472
+            ],
+            "violation_pct": 47.384,
+            "violation_ci95": [
+              35.2778,
+              59.4913
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "shield": {
+            "cooling_kwh": 22684.7,
+            "saving_vs_gl36_pct": 12.8,
+            "saving_ci95": [
+              11.6312,
+              13.8683
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.553,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22688.0,
+            "saving_vs_gl36_pct": 12.79,
+            "saving_ci95": [
+              11.623,
+              13.8579
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.553,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22684.7,
+            "saving_vs_gl36_pct": 12.8,
+            "saving_ci95": [
+              11.6312,
+              13.8683
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.553,
+            "fallback_rate": 0.0
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22688.0,
+            "saving_vs_gl36_pct": 12.79,
+            "saving_ci95": [
+              11.623,
+              13.8579
+            ],
+            "violation_pct": 0.0,
+            "violation_ci95": [
+              0.0,
+              0.0
+            ],
+            "shield_rate": 0.553,
+            "fallback_rate": 0.0
+          }
+        }
+      }
+    },
+    "faults": {
+      "gl36_reference": {
+        "cooling_kwh": 25828.9,
+        "violation_rate": 0.0007
+      },
+      "policies": {
+        "rl": {
+          "none": {
+            "cooling_kwh": 21907.2,
+            "saving_vs_gl36_pct": 14.4,
+            "saving_ci95": [
+              12.7926,
+              15.901
+            ],
+            "violation_pct": 20.139,
+            "violation_ci95": [
+              10.8565,
+              30.7876
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21914.4,
+            "saving_vs_gl36_pct": 14.39,
+            "saving_ci95": [
+              12.8156,
+              15.8564
+            ],
+            "violation_pct": 19.144,
+            "violation_ci95": [
+              10.0689,
+              29.6528
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.035
+          },
+          "shield": {
+            "cooling_kwh": 22229.0,
+            "saving_vs_gl36_pct": 13.44,
+            "saving_ci95": [
+              12.0241,
+              14.7805
+            ],
+            "violation_pct": 0.185,
+            "violation_ci95": [
+              0.0,
+              0.4398
+            ],
+            "shield_rate": 0.355,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22223.9,
+            "saving_vs_gl36_pct": 13.46,
+            "saving_ci95": [
+              12.0237,
+              14.8016
+            ],
+            "violation_pct": 0.185,
+            "violation_ci95": [
+              0.0,
+              0.4398
+            ],
+            "shield_rate": 0.353,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22222.3,
+            "saving_vs_gl36_pct": 13.48,
+            "saving_ci95": [
+              12.0709,
+              14.7892
+            ],
+            "violation_pct": 0.069,
+            "violation_ci95": [
+              0.0,
+              0.2083
+            ],
+            "shield_rate": 0.339,
+            "fallback_rate": 0.035
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22223.4,
+            "saving_vs_gl36_pct": 13.48,
+            "saving_ci95": [
+              12.0696,
+              14.7849
+            ],
+            "violation_pct": 0.046,
+            "violation_ci95": [
+              0.0,
+              0.1389
+            ],
+            "shield_rate": 0.338,
+            "fallback_rate": 0.035
+          }
+        },
+        "fixed": {
+          "none": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.38,
+            "saving_ci95": [
+              13.9778,
+              16.6689
+            ],
+            "violation_pct": 19.699,
+            "violation_ci95": [
+              10.4161,
+              30.4867
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21857.2,
+            "saving_vs_gl36_pct": 14.68,
+            "saving_ci95": [
+              13.2218,
+              16.0429
+            ],
+            "violation_pct": 19.144,
+            "violation_ci95": [
+              10.0689,
+              29.6528
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.035
+          },
+          "shield": {
+            "cooling_kwh": 22010.7,
+            "saving_vs_gl36_pct": 14.43,
+            "saving_ci95": [
+              13.2004,
+              15.5524
+            ],
+            "violation_pct": 0.093,
+            "violation_ci95": [
+              0.0,
+              0.2778
+            ],
+            "shield_rate": 0.349,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22004.3,
+            "saving_vs_gl36_pct": 14.45,
+            "saving_ci95": [
+              13.2107,
+              15.5731
+            ],
+            "violation_pct": 0.139,
+            "violation_ci95": [
+              0.0,
+              0.3704
+            ],
+            "shield_rate": 0.349,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22164.9,
+            "saving_vs_gl36_pct": 13.77,
+            "saving_ci95": [
+              12.4498,
+              14.9737
+            ],
+            "violation_pct": 0.069,
+            "violation_ci95": [
+              0.0,
+              0.2083
+            ],
+            "shield_rate": 0.338,
+            "fallback_rate": 0.035
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22166.0,
+            "saving_vs_gl36_pct": 13.76,
+            "saving_ci95": [
+              12.4476,
+              14.9684
+            ],
+            "violation_pct": 0.046,
+            "violation_ci95": [
+              0.0,
+              0.1389
+            ],
+            "shield_rate": 0.338,
+            "fallback_rate": 0.035
+          }
+        }
+      }
+    },
+    "drift+faults": {
+      "gl36_reference": {
+        "cooling_kwh": 26018.0,
+        "violation_rate": 0.0
+      },
+      "policies": {
+        "rl": {
+          "none": {
+            "cooling_kwh": 21913.4,
+            "saving_vs_gl36_pct": 14.94,
+            "saving_ci95": [
+              13.2339,
+              16.5138
+            ],
+            "violation_pct": 43.241,
+            "violation_ci95": [
+              31.2031,
+              55.3947
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21941.7,
+            "saving_vs_gl36_pct": 14.83,
+            "saving_ci95": [
+              13.1283,
+              16.4058
+            ],
+            "violation_pct": 41.782,
+            "violation_ci95": [
+              30.0214,
+              53.8438
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.035
+          },
+          "shield": {
+            "cooling_kwh": 22235.2,
+            "saving_vs_gl36_pct": 13.99,
+            "saving_ci95": [
+              12.4601,
+              15.3951
+            ],
+            "violation_pct": 42.801,
+            "violation_ci95": [
+              30.9479,
+              54.7917
+            ],
+            "shield_rate": 0.354,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22550.5,
+            "saving_vs_gl36_pct": 12.95,
+            "saving_ci95": [
+              11.6461,
+              14.1525
+            ],
+            "violation_pct": 0.486,
+            "violation_ci95": [
+              0.162,
+              0.8571
+            ],
+            "shield_rate": 0.516,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22253.8,
+            "saving_vs_gl36_pct": 13.91,
+            "saving_ci95": [
+              12.3752,
+              15.3088
+            ],
+            "violation_pct": 41.042,
+            "violation_ci95": [
+              29.5127,
+              52.8472
+            ],
+            "shield_rate": 0.338,
+            "fallback_rate": 0.035
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22565.5,
+            "saving_vs_gl36_pct": 12.89,
+            "saving_ci95": [
+              11.5683,
+              14.0996
+            ],
+            "violation_pct": 0.046,
+            "violation_ci95": [
+              0.0,
+              0.1389
+            ],
+            "shield_rate": 0.498,
+            "fallback_rate": 0.035
+          }
+        },
+        "fixed": {
+          "none": {
+            "cooling_kwh": 21690.3,
+            "saving_vs_gl36_pct": 15.94,
+            "saving_ci95": [
+              14.4635,
+              17.3109
+            ],
+            "violation_pct": 42.222,
+            "violation_ci95": [
+              30.2772,
+              54.3987
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.0
+          },
+          "guard": {
+            "cooling_kwh": 21881.0,
+            "saving_vs_gl36_pct": 15.13,
+            "saving_ci95": [
+              13.5354,
+              16.6051
+            ],
+            "violation_pct": 41.62,
+            "violation_ci95": [
+              29.7454,
+              53.7043
+            ],
+            "shield_rate": 0.0,
+            "fallback_rate": 0.035
+          },
+          "shield": {
+            "cooling_kwh": 22010.7,
+            "saving_vs_gl36_pct": 14.99,
+            "saving_ci95": [
+              13.6892,
+              16.2022
+            ],
+            "violation_pct": 41.759,
+            "violation_ci95": [
+              29.9537,
+              53.7269
+            ],
+            "shield_rate": 0.349,
+            "fallback_rate": 0.0
+          },
+          "shield+calibrator": {
+            "cooling_kwh": 22328.6,
+            "saving_vs_gl36_pct": 13.95,
+            "saving_ci95": [
+              12.8075,
+              14.9832
+            ],
+            "violation_pct": 0.417,
+            "violation_ci95": [
+              0.1389,
+              0.7639
+            ],
+            "shield_rate": 0.509,
+            "fallback_rate": 0.0
+          },
+          "shield+guard": {
+            "cooling_kwh": 22192.9,
+            "saving_vs_gl36_pct": 14.21,
+            "saving_ci95": [
+              12.7877,
+              15.5181
+            ],
+            "violation_pct": 40.88,
+            "violation_ci95": [
+              29.305,
+              52.7089
+            ],
+            "shield_rate": 0.338,
+            "fallback_rate": 0.035
+          },
+          "full (shield+calibrator+guard)": {
+            "cooling_kwh": 22506.3,
+            "saving_vs_gl36_pct": 13.19,
+            "saving_ci95": [
+              11.9777,
+              14.3057
+            ],
+            "violation_pct": 0.046,
+            "violation_ci95": [
+              0.0,
+              0.1389
+            ],
+            "shield_rate": 0.497,
+            "fallback_rate": 0.035
+          }
+        }
+      }
+    }
+  }
+}

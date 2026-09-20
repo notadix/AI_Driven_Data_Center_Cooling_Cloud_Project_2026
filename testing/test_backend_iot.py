@@ -14,6 +14,7 @@ Tests cover:
   10. Schema validation — TelemetryPayload / ControlPayload JSON round-trip
 """
 
+import numpy as np
 import asyncio
 import json
 import math
@@ -1515,3 +1516,18 @@ class TestLocalStackSFnIntegration:
         output = json.loads(desc.get("output", "{}"))
         # PrioritizedRetraining sets training.training_job = "cooling-twin-prioritized-test"
         assert output.get("training", {}).get("training_job") == "cooling-twin-prioritized-test"
+
+
+class TestItLoadDynamics:
+    def test_it_load_is_a_smooth_walk_not_a_clamp_to_clamp_flip(self):
+        """Regression: steps used to be ~10x the load range, so the load alternated between its 10 and 28 kW limits."""
+        from src.aws.iot.iot_publisher import PhysicsSimulator
+        sim = PhysicsSimulator("F", "C", "R")
+        loads = []
+        for _ in range(400):
+            sim.step()
+            loads.append(sim.it_power_kw)
+        loads = np.array(loads)
+        assert np.abs(np.diff(loads)).max() < 1.0                         # kW per step, per representative rack
+        assert np.mean((loads <= 10.0 + 1e-9) | (loads >= 28.0 - 1e-9)) < 0.2
+        assert loads.std() > 0.05                                         # but it does move

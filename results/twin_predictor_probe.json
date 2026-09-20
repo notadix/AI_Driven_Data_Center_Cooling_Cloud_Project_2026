@@ -1,0 +1,15 @@
+{
+  "method": "HistGradientBoosting (L1 loss) on the change from the last reading; chronological 70/30 split",
+  "train_rows": 33917,
+  "test_rows": 14917,
+  "return_temp_c": {
+    "gbm_residual_mape_pct": 3.745,
+    "persistence_mape_pct": 2.756,
+    "meets_2pct": false
+  },
+  "cooling_power_kw": {
+    "gbm_residual_mape_pct": 2.812,
+    "persistence_mape_pct": 3.257,
+    "meets_2pct": false
+  }
+}
