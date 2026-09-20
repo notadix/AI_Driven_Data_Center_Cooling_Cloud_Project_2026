@@ -5,6 +5,7 @@ export default function CarbonTracker({
   carbonIntensity = 285.0,
   totalFacilityKw = 20930.0,
   region = 'us-east-1',
+  valveSplitPct = null,
 }) {
   // Compute hourly carbon emission in kg CO2e / hour
   const hourlyCarbonKg = (totalFacilityKw * (carbonIntensity / 1000.0)).toFixed(1);
@@ -93,8 +94,8 @@ export default function CarbonTracker({
 
       {/* Carbon-Aware Optimization Badge */}
       <div className="mt-3 bg-emerald-950/30 border border-emerald-500/20 rounded-xl p-2 flex items-center justify-between text-xs">
-        <span className="text-emerald-300">Economizer Valve Split</span>
-        <span className="font-mono font-bold text-emerald-400">Max Free-Cooling Active</span>
+        <span className="text-emerald-300">Free-air (economizer) valve</span>
+        <span className="font-mono font-bold text-emerald-400">{valveSplitPct != null ? `${Number(valveSplitPct).toFixed(0)}% open` : '--'}</span>
       </div>
     </div>
   );

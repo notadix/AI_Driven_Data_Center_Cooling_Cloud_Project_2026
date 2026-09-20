@@ -40,7 +40,7 @@ export default function PUEGauge({ pue = 1.134, wue = 0.28, itPowerKw = 18450, c
         </div>
         <div className="flex items-center space-x-1.5 text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
           <TrendingDown className="w-3.5 h-3.5" />
-          <span className="font-mono font-medium">-18.4% vs Legacy</span>
+          <span className="font-mono font-medium">{`${(((pue - 1.15) / 1.15) * 100).toFixed(1)}% vs target`}</span>
         </div>
       </div>
 

@@ -72,6 +72,13 @@ export default function Dashboard() {
   const coolingPowerMw = (telemetry.cooling_power_kw / 1000.0).toFixed(2);
   const totalPowerMw = ((telemetry.it_power_kw + telemetry.cooling_power_kw) / 1000.0).toFixed(2);
   const deltaT = (telemetry.return_temp_c - telemetry.fws_supply_temp_c).toFixed(1);
+  // Same bands as the Green Grid Carbon Tracker (gCO2/kWh).
+  const carbonNow = telemetry.carbon_gco2_kwh || 285;
+  const carbonBand =
+    carbonNow < 180 ? { label: 'Ultra clean grid', cls: 'text-emerald-400' }
+    : carbonNow < 300 ? { label: 'Clean grid', cls: 'text-cyan-400' }
+    : carbonNow < 420 ? { label: 'Moderate grid', cls: 'text-amber-400' }
+    : { label: 'Dirty grid', cls: 'text-red-400' };
   const coolingSharePct = ((100 * telemetry.cooling_power_kw) / Math.max(1, telemetry.it_power_kw + telemetry.cooling_power_kw)).toFixed(1);
   const racksOutside = spatialGrid.filter((n) => n.ashrae_status !== 'NORMAL').length;
 
@@ -219,7 +226,7 @@ export default function Dashboard() {
             <div className="text-2xl font-black font-mono text-slate-100">
               {Math.round(telemetry.carbon_gco2_kwh || 285)} <span className="text-xs font-normal text-slate-400">g/kWh</span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-medium">Economizer Max Split</span>
+            <span className={`text-[10px] font-medium ${carbonBand.cls}`}>{carbonBand.label}</span>
           </div>
         </div>
       </section>
@@ -303,6 +310,7 @@ export default function Dashboard() {
 
         {/* Green Grid Carbon Tracker */}
         <CarbonTracker
+          valveSplitPct={telemetry.valve_split_pct}
           carbonIntensity={telemetry.carbon_gco2_kwh || 285}
           totalFacilityKw={(telemetry.it_power_kw || 18450) + (telemetry.cooling_power_kw || 2480)}
           region={FACILITY_REGIONS[selectedFacility] || 'us-east-1'}
