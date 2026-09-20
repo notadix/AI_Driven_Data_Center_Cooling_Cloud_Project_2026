@@ -12,7 +12,7 @@ to"), this document replaces it with what was actually measured.
 | Objective (report §2) | Result | Evidence |
 |---|---|---|
 | 1. Real-time two-way digital twin, fidelity ≈ 2% MAPE | On the **measured** signals: PUE 0.65% (meets), cooling power 12.4% and return temperature 7.2% (do not; persistence alone gets 3.3% / 2.8%). Inlet/outlet temperature are derived by formula in the dataset and are not evidence | §1 · `results/twin_fidelity.json` |
-| 2. Predictive thermal surrogate + load forecasting | FNO R² 0.9997 / MAE 0.06 °C / 6.3 ms; load forecast beats persistence at ≥ 30 min (8.7% vs 9.4% MAPE at 60 min) | §2 · `results/fno_eval_metrics.json`, `results/load_forecast_metrics.json` |
+| 2. Predictive thermal surrogate + load forecasting | FNO vs a 2D transport solver: R² 0.9999, MAE 0.034 °C, 5.1 ms vs 91 ms for the solver (**18×** faster at 128², 55× at 192²); load forecast beats persistence at ≥ 30 min (8.7% vs 9.4% MAPE at 60 min) | §2 · `results/fno_pde_eval.json`, `results/load_forecast_metrics.json` |
 | 3. Safe RL, 15–30% less cooling energy vs a Guideline-36 baseline, no SLA violations | Selected agent −14.2% (CI 12.8–15.4%), 0 violations; 5-seed mean −9.2% ± 4.9%. **Physical upper bound in this twin: −14.4%**, of which the agent captures 98.4% | §3 · `results/rl_benchmark.json`, `results/energy_headroom.json` |
 | 4. Carbon- and water-aware optimisation | Load shifting −1.3…−2.1% facility CO₂; Safe-PPO −4.2…−7.3% water | §4 · `results/carbon_water.json` |
 | 5. Scalable, fault-tolerant pipeline; transfer / online learning | Zero-shot transfer −9.5% with 0 violations; sensor-fault guard; online calibration restores safety under plant drift. **LocalStack validated live; not deployed on AWS** | §5–6 · `results/transfer_learning.json` |
@@ -82,14 +82,30 @@ uses the dataset's synthetic ambient, so this is a rough control variable, not a
 
 ## 2. Predictive layer (Objective 2)
 
-**FNO thermal surrogate** (`results/fno_eval_metrics.json`, 7,481 held-out samples, CPU):
-R² 0.9997, MAE 0.0605 °C, RMSE 0.0812 °C, max error 1.28 °C, latency 6.26 ms mean / 9.07 ms
-P95 (project target < 100 ms). *Important:* the Frontier data has no per-rack temperature
-sensors, so the training target is an analytic thermal model of the measured inputs
-(supply + heat / (flow · cₚ), see `dataset/preprocess_telemetry.py`). The FNO reproduces that
-model ~1000× faster than evaluating it on a grid; it has **not** been validated against
-measured rack temperatures or a CFD solver. It is served live at
-`GET /api/v1/forecast/thermal-field/{facility}/{crac}`.
+**FNO thermal surrogate, validated against a transport solver** (`scripts/train_fno_pde.py`,
+`results/fno_pde_eval.json`). `src/digital_twin/thermal_solver.py` solves a steady 2D advection-diffusion
+model of the coolant temperature over the hall (coolant enters at the supply temperature, every rack is a
+heat source with the hotspot profile, diffusion couples neighbours, total heat conserved to within ~4% of the
+lumped energy balance, grid-converged to 0.02 °C between 128² and 192²). The FNO is trained on
+6,000 solver fields whose operating points (IT power, supply temperature, flow) are real
+Frontier2023 measurements, split chronologically, and tested on 1,500 operating points from the
+last part of the year:
+
+| | |
+|---|---|
+| R² vs the solver | **0.99991** |
+| MAE / RMSE / max error | **0.034** / 0.059 / 1.87 °C (fields span 11–53 °C) |
+| Spatial structure learned | uniform-field baseline, even given the exact field mean: MAE 4.73 °C |
+| Latency (CPU) | FNO **5.1 ms** vs solver 17 / 91 / 280 ms at 64² / 128² / 192² |
+| Speed-up | 3.4× / **18×** / 55× |
+
+What this does and does not show. It shows the surrogate reproduces a solver with real spatial coupling
+about 18× faster (and the gap widens with resolution). It does **not** show agreement with measured rack
+temperatures (Frontier2023 has no per-rack sensors) or with 3D CFD: the solver is a 2D reduced-order
+transport model with no turbulence, buoyancy or geometry, so "faster than full CFD" is unproven for a
+real CFD solver, which is far slower than this one. The earlier FNO (`results/fno_eval_metrics.json`,
+R² 0.9997) was trained on an analytic formula of the same inputs and is kept only as history; the live
+service now uses the solver-trained model (`GET /api/v1/forecast/thermal-field/{facility}/{crac}`, ~7 ms per request).
 
 **IT-load forecaster** (`scripts/train_load_forecaster.py`, GRU, 4 h history → 60 min ahead,
 7,452 held-out windows). MAPE by horizon:
@@ -103,7 +119,9 @@ measured rack temperatures or a CFD solver. It is served live at
 The forecaster is clearly better than the hourly-profile baseline and modestly better than
 persistence from 30 minutes on (8% relative at 60 min); at 10 minutes persistence is as good.
 Frontier's load has almost no diurnal pattern (hourly mean varies by ≤ 9%), so there is little
-to learn beyond short-term momentum. Live at `GET /api/v1/forecast/load/{facility}`.
+to learn beyond short-term momentum. Two other models on the same history were tried and are not better
+(60-minute MAPE: gradient boosting 9.04%, ridge 9.73%, GRU 8.66%; `results/load_forecast_alternatives.json`),
+so the GRU is close to what this data allows. Live at `GET /api/v1/forecast/load/{facility}`.
 
 ## 3. Safe reinforcement learning (Objective 3)
 
@@ -219,6 +237,17 @@ The drift detector (`src/aws/orchestration/drift_trigger.py`) now uses the twin'
 distribution as reference and a quantile-binned PSI (≈ 0.3% false-alarm rate on nominal
 windows; it previously alarmed on noise).
 
+## 5b. Control-loop latency (Objective 1: "latency low enough for closed-loop control")
+
+`scripts/measure_control_latency.py` (in-process, no network): one CRAC's control decision (sensor guard +
+observation + Safe-PPO policy + safety shield + calibrator) takes **0.59 ms median, 0.81 ms p99**
+(5,000 calls); all 12 CRACs in a tick take about 10 ms p99, i.e.
+0.04% of the 2 s control period. API round trips: control status
+0.9 ms, telemetry 1.0 ms, live explainability 3.1 ms,
+FNO thermal field 6.9 ms, load forecast 5.4 ms. End-to-end reaction time is set by the
+telemetry period (1 s) plus the control period (2 s), 3 s worst case, both configurable; compute
+is negligible next to them.
+
 ## 6. Cloud and deployment status
 
 The AWS integration code (IoT Core, Timestream, SiteWise, TwinMaker, Step Functions, SageMaker
@@ -240,8 +269,8 @@ anything on real AWS. A real-AWS free-tier deployment is the remaining phase.
 
 Live gradient×input attribution over the 10 observation features
 (`GET /api/v1/control/explain/{facility}/{crac}`, shown on the dashboard). Test suite:
-run `python -m pytest testing/` (332 pass without LocalStack; 10 more run and pass when a
-LocalStack container is up, 342 in total). Frontend: `npm run build` succeeds; the
+run `python -m pytest testing/` (346 pass without LocalStack; 10 more run and pass when a
+LocalStack container is up, 356 in total). Frontend: `npm run build` succeeds; the
 dashboard was exercised in a browser (three facilities, control panel, emergency override,
 carbon-schedule and predictive panels) with no console errors while the backend was up.
 
@@ -254,7 +283,10 @@ python scripts/calibrate_twin.py                       # twin fidelity + calibra
 python scripts/run_rl_experiments.py --seeds 0 1 2 3 4 --episodes 1000 --workers 12
 python scripts/benchmark_rl.py                         # selects the agent, writes rl_benchmark.json
 python scripts/energy_headroom.py                      # physical upper bound on the saving
+python scripts/train_fno_pde.py                        # FNO vs the 2D transport solver
 python scripts/train_load_forecaster.py
+python scripts/compare_forecast_models.py
+python scripts/measure_control_latency.py
 python scripts/evaluate_carbon_water.py
 python scripts/evaluate_transfer.py
 python scripts/make_result_charts.py                   # presentation/*.png
@@ -270,7 +302,7 @@ python scripts/make_result_charts.py                   # presentation/*.png
    reset-schedule controller, not certified GL36.
 3. **The safety guarantee depends on the twin.** It is exact inside the simulator and degrades
    with model error; online calibration mitigates inlet-temperature drift only.
-4. **The FNO target is analytic** (see §2), not measured rack temperatures.
+4. **The FNO is validated against a 2D transport solver** (§2), not against measured rack temperatures or 3D CFD.
 5. **Carbon results rest on assumptions** (20% deferrable load, 8 h window, synthetic diurnal
    grid profile shaped like `lambda_carbon_fetcher`); real grid data and job traces are absent.
 6. **Seed sensitivity:** five seeds per method; the spread (3.4–14.2%) is large.

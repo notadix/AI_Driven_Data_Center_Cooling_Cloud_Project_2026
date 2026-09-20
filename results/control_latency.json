@@ -1,0 +1,62 @@
+{
+  "decision_latency_per_crac": {
+    "p50_ms": 0.592,
+    "p95_ms": 0.703,
+    "p99_ms": 0.81,
+    "max_ms": 5.973,
+    "n": 5000
+  },
+  "api_latency_in_process": {
+    "control_status": {
+      "p50_ms": 0.906,
+      "p95_ms": 1.039,
+      "p99_ms": 4.15,
+      "max_ms": 8.455,
+      "n": 60
+    },
+    "telemetry_latest": {
+      "p50_ms": 0.96,
+      "p95_ms": 1.071,
+      "p99_ms": 1.098,
+      "max_ms": 1.099,
+      "n": 60
+    },
+    "explain": {
+      "p50_ms": 3.139,
+      "p95_ms": 3.59,
+      "p99_ms": 3.653,
+      "max_ms": 3.653,
+      "n": 60
+    },
+    "thermal_field_fno": {
+      "p50_ms": 6.877,
+      "p95_ms": 7.994,
+      "p99_ms": 8.356,
+      "max_ms": 8.49,
+      "n": 60
+    },
+    "load_forecast": {
+      "p50_ms": 5.399,
+      "p95_ms": 6.105,
+      "p99_ms": 6.26,
+      "max_ms": 6.262,
+      "n": 60
+    },
+    "metrics": {
+      "p50_ms": 2.569,
+      "p95_ms": 2.791,
+      "p99_ms": 2.952,
+      "max_ms": 2.969,
+      "n": 60
+    }
+  },
+  "loop_budget": {
+    "telemetry_publish_period_s": 1.0,
+    "control_period_s": 2.0,
+    "worst_case_reaction_s": 3.0,
+    "decision_share_of_control_period_pct": 0.041,
+    "cracs_per_tick": 12,
+    "decision_time_all_cracs_p99_ms": 9.72
+  },
+  "note": "In-process timings (no network). Worst-case reaction = a disturbance just after a telemetry sample waits for the next sample, then for the next control tick."
+}

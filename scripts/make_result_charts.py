@@ -12,7 +12,7 @@ Inputs (missing files are skipped, not faked):
   results/load_forecast_metrics.json  scripts/train_load_forecaster.py
   results/carbon_water.json        scripts/evaluate_carbon_water.py
   results/transfer_learning.json   scripts/evaluate_transfer.py
-  results/fno_eval_metrics.json    src/ai/surrogate/evaluate_fno.py
+  results/fno_pde_eval.json        scripts/train_fno_pde.py
   models/safe_ppo_agent_v1.pt      (for the trajectory rollout)
 
 Outputs: presentation/*.png
@@ -261,22 +261,28 @@ def transfer_chart():
 
 
 def fno_chart():
-    m = load("fno_eval_metrics.json")
+    m = load("fno_pde_eval.json")
     if not m:
         return
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
-    vals = [m["mae_c"], m["rmse_c"], m["max_err_c"]]
-    bars = axes[0].bar(["MAE", "RMSE", "Max error"], vals, color=[BLUE, GREEN, AMBER], edgecolor=NAVY)
-    axes[0].set_ylabel("°C")
-    axes[0].set_title(f"FNO error vs its target field (R² = {m['r2']:.4f})")
-    label_bars(axes[0], bars, fmt="{:.3f}", dy=0.02)
-    bars = axes[1].bar(["Mean", "P95"], [m["mean_latency_ms"], m["p95_latency_ms"]], color=["#073B4C", BLUE], edgecolor=NAVY)
-    axes[1].axhline(100.0, color=RED, linestyle="--", label="100 ms budget")
-    axes[1].set_ylabel("ms (CPU)")
-    axes[1].set_title(f"Inference latency ({m['samples']:,} samples)")
-    axes[1].legend()
-    label_bars(axes[1], bars, fmt="{:.2f}", dy=0.2)
-    fig.suptitle("2D FNO thermal surrogate (target is an analytic thermal model of the Frontier inputs, not measured rack sensors)", fontsize=11)
+    t, lat, sp = m["test_metrics"], m["latency_ms"], m["speedup_vs_solver"]
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.4))
+    bars = axes[0].bar(["FNO", "uniform field\n(oracle mean)"], [t["mae_c"], t["uniform_field_oracle_mae_c"]],
+                       color=[BLUE, GREY], edgecolor=NAVY)
+    axes[0].set_ylabel("MAE vs solver (°C)")
+    axes[0].set_title(f"Accuracy on held-out operating points\nR² = {t['r2']:.5f}")
+    label_bars(axes[0], bars, fmt="{:.3f}", dy=0.05)
+    grids = ["64", "128", "192"]
+    vals = [lat["solver_median_cpu_by_grid"][g] for g in grids]
+    bars = axes[1].bar([f"solver\n{g}²" for g in grids] + ["FNO"], vals + [lat["fno_median_cpu"]],
+                       color=[GREY, GREY, GREY, BLUE], edgecolor=NAVY)
+    axes[1].set_ylabel("ms per field (CPU)")
+    axes[1].set_title("Latency: FNO vs 2D transport solver")
+    label_bars(axes[1], bars, fmt="{:.1f}", dy=3)
+    bars = axes[2].bar([f"{g}²" for g in grids], [sp[g] for g in grids], color=BLUE, edgecolor=NAVY)
+    axes[2].set_ylabel("speed-up (x)")
+    axes[2].set_title("FNO speed-up vs solver resolution")
+    label_bars(axes[2], bars, fmt="{:.0f}x", dy=0.8)
+    fig.suptitle("2D FNO thermal surrogate (validated against a 2D transport solver, not measured rack temperatures or 3D CFD)", fontsize=11)
     fig.tight_layout()
     save(fig, "fno_metrics.png")
 

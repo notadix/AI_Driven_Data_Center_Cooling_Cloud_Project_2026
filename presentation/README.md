@@ -16,7 +16,7 @@ python scripts/make_result_charts.py
 | `load_forecast.png` | `results/load_forecast_metrics.json` | GRU load forecast vs persistence vs hour-of-day mean |
 | `carbon_water.png` | `results/carbon_water.json` | CO₂ from load shifting, cooling-energy and water savings per facility |
 | `transfer_learning.png` | `results/transfer_learning.json` | zero-shot / fine-tuned / from-scratch on a new facility |
-| `fno_metrics.png` | `results/fno_eval_metrics.json` | FNO error and latency (target field is an analytic model, see `docs/RESULTS.md` §2) |
+| `fno_metrics.png` | `results/fno_pde_eval.json` | FNO accuracy vs the 2D transport solver, latency and speed-up (solver-validated; not measured rack temperatures or 3D CFD) |
 | `pue_trajectory.png` | real rollout, seed 42 | one simulated day (144 steps of 10 minutes) for the controllers |
 
 See `docs/RESULTS.md` for method and limitations before quoting any number.

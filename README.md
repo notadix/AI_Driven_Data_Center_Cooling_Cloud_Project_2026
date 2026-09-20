@@ -1,6 +1,6 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![CI / Test Suite](https://img.shields.io/badge/pytest-332%20passed-brightgreen.svg)](testing/)
+[![CI / Test Suite](https://img.shields.io/badge/pytest-346%20passed-brightgreen.svg)](testing/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
 [![Three.js](https://img.shields.io/badge/three.js-0.183-black.svg)](src/frontend/src/components/ThreeDHeatmap.jsx)
@@ -23,8 +23,9 @@ calibrated simulator; nothing has run on a physical plant or on AWS. Frontier202
 | Report objective | Measured result | Target met? |
 |---|---|:---:|
 | Twin fidelity (held-out 30%, measured signals only) | PUE 0.65% MAPE (meets ≈2%); cooling power 12.4% and return temperature 7.2% do not. Inlet/outlet temperature in the dataset are derived by formula and are not counted | partly |
-| FNO thermal surrogate | R² 0.9997, MAE 0.06 °C, 6.3 ms (target is an analytic thermal model, not sensors) | yes, with caveat |
-| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence, 13.8% hour-of-day mean | modest gain |
+| FNO thermal surrogate (vs a 2D transport solver) | R² 0.9999, MAE 0.034 °C, 5.1 ms; 18× faster than the solver at 128² (not validated against measured rack temperatures or 3D CFD) | yes, with caveat |
+| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence; gradient boosting (9.0%) and ridge (9.7%) are worse | modest gain |
+| Control-loop latency | decision 0.59 ms median per CRAC; 3 s worst-case reaction set by the telemetry/control periods | yes |
 | Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical upper bound is -14.4%, so the agent captures 98%; the 15–30% target is not attainable in this twin | no (bounded by the model) |
 | Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | — |
 | Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) | small |
@@ -169,5 +170,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (342 tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (356 tests)
 ```

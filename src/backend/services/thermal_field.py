@@ -1,16 +1,13 @@
 """
 Live inference for the 2D Fourier Neural Operator thermal surrogate.
 
-Builds the FNO's 3-channel input (per-rack workload, supply-temperature field,
-per-rack coolant flow) for one CRAC zone exactly the way
-dataset/preprocess_telemetry.build_spatial_tensors builds the training data,
-normalises it with the training statistics, runs the trained model and returns
-the predicted 8x8 rack coolant-temperature field.
+The surrogate is trained (scripts/train_fno_pde.py) to reproduce the 2D advection-diffusion transport
+solver in src/digital_twin/thermal_solver.py: given the per-rack IT load, the supply-temperature field and
+the per-rack coolant flow of one CRAC zone it returns the 8x8 rack coolant-temperature field, ~18x faster
+than the solver at 128x128 resolution (results/fno_pde_eval.json).
 
-Caveat (also in docs/RESULTS.md): the training target is derived analytically
-from the same inputs (supply + heat / (flow * cp)); the Frontier2023 data has no
-per-rack temperature sensors. The surrogate therefore reproduces that thermal
-model 1000x faster than solving it -- it is not validated against measured rack
+Caveat (also in docs/RESULTS.md): the solver is a 2D reduced-order model, not 3D CFD, and Frontier2023 has no
+per-rack temperature sensors, so the surrogate is validated against the solver, not against measured rack
 temperatures.
 """
 
@@ -26,8 +23,8 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "fno_surrogate_v1.pt")
-STATS_PATH = os.path.join(PROJECT_ROOT, "models", "fno_normalization_stats.json")
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "fno_pde_v1.pt")
+STATS_PATH = os.path.join(PROJECT_ROOT, "models", "fno_pde_normalization_stats.json")
 
 GRID = 8
 N_RACKS = GRID * GRID
@@ -80,11 +77,8 @@ class ThermalFieldService:
         return self._error
 
     def build_input(self, it_zone_mw: float, supply_c: float, flow_lpm: float) -> np.ndarray:
-        hot, x_g, y_g = _hotspot()
-        ch0 = (it_zone_mw / N_RACKS) * hot
-        ch1 = supply_c + 0.05 * (x_g + y_g)
-        ch2 = (flow_lpm / N_RACKS) * (1.0 / (hot + 0.1))
-        return np.stack([ch0, ch1, ch2]).astype(np.float32)
+        from src.digital_twin.thermal_solver import rack_inputs
+        return rack_inputs(it_zone_mw, supply_c, flow_lpm)
 
     def predict(self, it_zone_mw: float, supply_c: float, flow_lpm: float) -> Dict[str, Any]:
         """Returns the rack coolant-temperature field (deg C, 8x8) and inference latency."""
@@ -92,15 +86,15 @@ class ThermalFieldService:
             raise RuntimeError(self._error or "FNO surrogate not loaded")
         import torch
 
-        lo = np.asarray(self._stats["channel_min"], dtype=np.float32)
-        hi = np.asarray(self._stats["channel_max"], dtype=np.float32)
-        x = self.build_input(it_zone_mw, supply_c, flow_lpm)
-        x = np.clip((x - lo[:3, None, None]) / (hi[:3, None, None] - lo[:3, None, None] + 1e-6), 0.0, 1.0)
+        lo = np.asarray(self._stats["input_min"], dtype=np.float32).reshape(3, 1, 1)
+        hi = np.asarray(self._stats["input_max"], dtype=np.float32).reshape(3, 1, 1)
+        lo_y, hi_y = float(self._stats["target_min"]), float(self._stats["target_max"])
+        x = np.clip((self.build_input(it_zone_mw, supply_c, flow_lpm) - lo) / (hi - lo + 1e-6), 0.0, 1.0)
         t0 = time.perf_counter()
         with torch.no_grad():
             y = self._model(torch.tensor(x[None])).numpy()[0, 0]
         latency_ms = (time.perf_counter() - t0) * 1000.0
-        temp = y * (hi[3] - lo[3] + 1e-6) + lo[3]
+        temp = y * (hi_y - lo_y + 1e-6) + lo_y
         return {
             "field_c": np.round(temp, 3).tolist(),
             "min_c": round(float(temp.min()), 3),

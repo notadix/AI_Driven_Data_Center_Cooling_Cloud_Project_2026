@@ -1,0 +1,36 @@
+{
+  "target": "2D advection-diffusion solver (src/digital_twin/thermal_solver.py), 8x8 rack-averaged coolant temperature",
+  "operating_points": "real Frontier2023 IT power / supply temperature / flow, chronological 70/15/15 split",
+  "samples": {
+    "train": 6000,
+    "val": 800,
+    "test": 1500
+  },
+  "solver_grid": 128,
+  "test_metrics": {
+    "r2": 0.99991,
+    "mae_c": 0.0335,
+    "rmse_c": 0.0591,
+    "max_err_c": 1.8728,
+    "spatial_pattern_correlation": 1.0,
+    "uniform_field_oracle_mae_c": 4.7324,
+    "field_range_c": [
+      11.31,
+      53.06
+    ]
+  },
+  "latency_ms": {
+    "fno_median_cpu": 5.052,
+    "solver_median_cpu_by_grid": {
+      "64": 17.18,
+      "128": 91.19,
+      "192": 279.83
+    }
+  },
+  "speedup_vs_solver": {
+    "64": 3.4,
+    "128": 18.0,
+    "192": 55.4
+  },
+  "note": "The solver is a 2D reduced-order transport model, not 3D CFD; the speed-up is versus this solver."
+}

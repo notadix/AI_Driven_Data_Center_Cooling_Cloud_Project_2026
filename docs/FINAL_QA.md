@@ -4,7 +4,7 @@
 
 ## Automated tests
 
-`python -m pytest testing/` -> **332 passed, 10 skipped without LocalStack; 342 passed, 0 skipped with it.** The 10 skipped tests need a
+`python -m pytest testing/` -> **346 passed, 10 skipped without LocalStack; 356 passed, 0 skipped with it.** The 10 skipped tests need a
 running LocalStack container and skip themselves when it is unreachable.
 
 | File | Covers |

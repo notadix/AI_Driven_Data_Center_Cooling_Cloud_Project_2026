@@ -1,0 +1,45 @@
+{
+  "horizon_minutes": [
+    10,
+    20,
+    30,
+    40,
+    50,
+    60
+  ],
+  "mape_pct": {
+    "persistence": [
+      3.025,
+      5.346,
+      6.937,
+      7.913,
+      8.705,
+      9.428
+    ],
+    "ridge": [
+      3.804,
+      6.11,
+      7.725,
+      8.582,
+      9.22,
+      9.732
+    ],
+    "gbm_l1": [
+      3.038,
+      5.463,
+      6.977,
+      7.916,
+      8.539,
+      9.042
+    ],
+    "gru": [
+      3.094,
+      5.417,
+      6.842,
+      7.679,
+      8.192,
+      8.657
+    ]
+  },
+  "conclusion": "Gradient boosting and ridge on the same history do not beat the GRU; the GRU is the best of the four."
+}

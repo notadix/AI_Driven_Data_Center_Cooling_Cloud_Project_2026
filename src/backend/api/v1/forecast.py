@@ -124,6 +124,6 @@ async def thermal_field(facility_id: str = Path(...), crac_id: str = Path(...)) 
     return JSONResponse({"status": "ok", "data": {
         "facility_id": facility_id, "crac_id": crac_id, "available": True,
         "inputs": {"it_zone_mw": round(it_zone_mw, 3), "supply_c": round(state.supply_c, 2), "flow_lpm": round(flow, 1)},
-        "note": "Rack coolant temperature (supply + heat-pickup); trained on an analytic thermal model of the Frontier2023 inputs.",
+        "note": "Rack coolant temperature from the FNO surrogate of the 2D transport solver (see docs/RESULTS.md for validation and limits).",
         **out,
     }})
