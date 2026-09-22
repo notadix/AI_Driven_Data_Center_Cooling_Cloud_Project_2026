@@ -4,20 +4,20 @@
 
 @layer base {
   body {
-    background: radial-gradient(circle at 50% 0%, #0F172A 0%, #070B14 100%);
+    background: radial-gradient(circle at 50% 0%, #1C1C1E 0%, #000000 100%);
     min-height: 100vh;
     overflow-x: hidden;
-    color: #F1F5F9;
-    font-family: 'Outfit', sans-serif;
+    color: #F5F5F7;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Outfit', sans-serif;
   }
 }
 
-/* Glassmorphism panel base */
+/* Glassmorphism panel base - translucent, blurred, neutral (Apple System Dark) */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
 }
 
@@ -26,8 +26,8 @@
 }
 
 .glass-panel-interactive:hover {
-  border-color: rgba(6, 182, 212, 0.35);
-  box-shadow: 0 12px 40px 0 rgba(6, 182, 212, 0.15);
+  border-color: rgba(50, 173, 230, 0.35);
+  box-shadow: 0 12px 40px 0 rgba(50, 173, 230, 0.15);
   transform: translateY(-2px);
 }
 
@@ -45,12 +45,12 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0F19;
+  background: #000000;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1E293B;
+  background: #2C2C2E;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #48484A;
 }

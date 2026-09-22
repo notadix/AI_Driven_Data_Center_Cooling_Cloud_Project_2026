@@ -80,7 +80,7 @@ export default function ForecastPanel({ facilityId = 'DC-EAST-01', cracId = 'CRA
         <>
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-16" role="img" aria-label="Forecast IT load">
             <path d={sparkline([load.current_it_kw, ...forecast.map((p) => p.it_kw)])}
-                  fill="none" stroke="#22d3ee" strokeWidth="1.8" />
+                  fill="none" stroke="#32ADE6" strokeWidth="1.8" />
           </svg>
           <div className="grid grid-cols-3 gap-2 text-xs mt-1">
             <div className="bg-slate-950/60 rounded-xl p-2 border border-slate-800/60">

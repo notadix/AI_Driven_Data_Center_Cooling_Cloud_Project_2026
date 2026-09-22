@@ -200,15 +200,15 @@ export default function OperatorControlPanel({
       </div>
 
       {/* CRAC Unit Tabs */}
-      <div className="grid grid-cols-4 gap-1.5 mb-3 bg-slate-950/60 p-1 rounded-xl border border-slate-800">
+      <div className="grid grid-cols-4 gap-1 mb-3 bg-white/[0.04] backdrop-blur-xl p-1 rounded-xl border border-white/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
         {['CRAC-01', 'CRAC-02', 'CRAC-03', 'CRAC-04'].map((id) => (
           <button
             key={id}
             onClick={() => setSelectedCrac(id)}
             className={`py-1 rounded-lg text-xs font-mono transition-all ${
               selectedCrac === id
-                ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-gradient-to-b from-cyan-400/30 via-cyan-500/15 to-cyan-500/10 text-cyan-200 font-bold border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
             {id}
@@ -293,7 +293,7 @@ export default function OperatorControlPanel({
             disabled={!isManual}
             value={valveSplit}
             onChange={(e) => setValveSplit(parseFloat(e.target.value))}
-            className="w-full accent-amber-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+            className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
           />
         </div>
       </div>

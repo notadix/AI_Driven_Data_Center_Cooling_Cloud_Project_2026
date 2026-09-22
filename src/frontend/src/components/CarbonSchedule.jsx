@@ -58,11 +58,11 @@ export default function CarbonSchedule({ facilityId = 'DC-EAST-01', flexibleFrac
     chart = (
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-24" role="img" aria-label="Carbon intensity and IT load by hour">
         <path d={path(scale(carbon, Math.min(...carbon) * 0.95, Math.max(...carbon) * 1.02))}
-              fill="none" stroke="#f59e0b" strokeWidth="1.6" />
+              fill="none" stroke="#32ADE6" strokeWidth="1.6" />
         <path d={path(scale(base, loLoad, hiLoad))}
-              fill="none" stroke="#64748b" strokeWidth="1.4" strokeDasharray="4 3" />
+              fill="none" stroke="#8E8E93" strokeWidth="1.4" strokeDasharray="4 3" />
         <path d={path(scale(shifted, loLoad, hiLoad))}
-              fill="none" stroke="#22d3ee" strokeWidth="1.8" />
+              fill="none" stroke="#F5F5F7" strokeWidth="1.8" />
       </svg>
     );
   }
@@ -102,9 +102,9 @@ export default function CarbonSchedule({ facilityId = 'DC-EAST-01', flexibleFrac
       {plan && (
         <>
           <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
-            <span><span className="text-amber-400">━</span> grid gCO₂/kWh</span>
+            <span><span className="text-cyan-400">━</span> grid gCO₂/kWh</span>
             <span><span className="text-slate-400">╍</span> baseline IT</span>
-            <span><span className="text-cyan-400">━</span> shifted IT</span>
+            <span><span className="text-slate-100">━</span> shifted IT</span>
           </div>
           <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
             <div className="bg-slate-950/60 rounded-xl p-2 border border-slate-800/60">

@@ -51,7 +51,7 @@ export default function PUEGauge({ pue = 1.134, wue = 0.28, itPowerKw = 18450, c
           <path
             d="M 10,65 A 50,50 0 0,1 110,65"
             fill="none"
-            stroke="#1E293B"
+            stroke="#2C2C2E"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
           />
@@ -73,7 +73,7 @@ export default function PUEGauge({ pue = 1.134, wue = 0.28, itPowerKw = 18450, c
             cx={60 - 50 * Math.cos((targetAngleDeg * Math.PI) / 180)}
             cy={65 - 50 * Math.sin((targetAngleDeg * Math.PI) / 180)}
             r="3"
-            fill="#38BDF8"
+            fill="#32ADE6"
           />
         </svg>
 

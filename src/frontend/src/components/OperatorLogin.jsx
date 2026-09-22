@@ -105,7 +105,7 @@ export default function OperatorLogin() {
       {open && (
         <form
           onSubmit={handleSignIn}
-          className="absolute right-0 mt-2 w-64 glass-panel rounded-xl border border-slate-800 p-4 z-50 space-y-2 shadow-2xl"
+          className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] glass-panel rounded-xl border border-slate-800 p-4 z-50 space-y-2 shadow-2xl"
         >
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold text-slate-300">Operator Sign In</span>

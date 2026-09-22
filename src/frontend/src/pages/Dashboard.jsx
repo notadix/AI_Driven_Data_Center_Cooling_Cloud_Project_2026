@@ -86,7 +86,7 @@ export default function Dashboard() {
   const racksOutside = spatialGrid.filter((n) => n.ashrae_status !== 'NORMAL').length;
 
   return (
-    <div className="min-h-screen bg-[#070B14] text-slate-100 p-4 md:p-6 space-y-6 cyber-grid">
+    <div className="min-h-screen bg-black text-slate-100 p-4 md:p-6 space-y-6 cyber-grid">
       {/* ── Top Header Navigation ──────────────────────────────────────────────── */}
       <header className="glass-panel rounded-2xl px-6 py-4 flex flex-wrap items-center justify-between gap-4 border border-slate-800 relative z-30">
         {/* relative z-30: header's own backdrop-filter creates a stacking context, so without an
@@ -94,15 +94,18 @@ export default function Dashboard() {
             *behind* the KPI cards below, which have their own glass-panel stacking contexts and come
             later in DOM order. */}
         <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-glow-cyan">
-            <Server className="w-5 h-5 text-slate-950 font-bold" />
+          <div className="relative w-10 h-10 rounded-[11px] bg-gradient-to-b from-emerald-400 via-emerald-500 to-cyan-500 flex items-center justify-center shadow-glow-cyan border border-white/25 overflow-hidden">
+            {/* Glass sheen across the upper half, the way an Apple app icon catches light */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-white/5 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 rounded-[11px] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.5),inset_0_-6px_10px_-6px_rgba(0,0,0,0.35)] pointer-events-none" />
+            <Server className="relative w-5 h-5 text-white drop-shadow-sm" strokeWidth={2.25} />
           </div>
           <div>
             <div className="flex items-center space-x-2">
               <h1 className="text-lg md:text-xl font-bold tracking-tight text-white">
                 AI Hybrid Cooling Digital Twin
               </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-mono whitespace-nowrap">
                 v2.0-PROD
               </span>
             </div>
@@ -250,7 +253,9 @@ export default function Dashboard() {
 
         {/* Rack Detail Inspection Drawer / Modal */}
         {selectedRack && (
-          <div className="absolute top-16 right-4 z-30 w-80 glass-panel bg-slate-950/95 border border-cyan-500/40 rounded-2xl p-4 shadow-2xl space-y-3">
+          <div className="absolute top-40 sm:top-28 right-4 z-30 w-80 max-w-[calc(100%-2rem)] glass-panel bg-slate-950/95 border border-cyan-500/40 rounded-2xl p-4 shadow-2xl space-y-3">
+            {/* The HUD row above (spatial-twin badge + camera switcher) can wrap onto two or
+                three lines at narrow widths, so a small fixed offset overlaps those buttons. */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
               <div className="flex items-center space-x-2 font-mono font-bold text-slate-100">
                 <Server className="w-4 h-4 text-cyan-400" />

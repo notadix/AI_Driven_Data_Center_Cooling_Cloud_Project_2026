@@ -52,8 +52,8 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
     // 1. Scene Setup
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(0x070B14);
-    scene.fog = new THREE.FogExp2(0x070B14, 0.015);
+    scene.background = new THREE.Color(0x000000);
+    scene.fog = new THREE.FogExp2(0x000000, 0.015);
 
     // 2. Camera Setup
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
@@ -81,25 +81,25 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
     controlsRef.current = controls;
 
     // 5. Lighting
-    const ambientLight = new THREE.AmbientLight(0x1E293B, 2.5);
+    const ambientLight = new THREE.AmbientLight(0x38383A, 2.5);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xE2E8F0, 1.8);
+    const dirLight = new THREE.DirectionalLight(0xEAF6FA, 1.8);
     dirLight.position.set(15, 25, 20);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
     scene.add(dirLight);
 
-    // Subtle blue accent light for tech atmosphere
-    const bluePoint = new THREE.PointLight(0x06B6D4, 3.0, 40);
-    bluePoint.position.set(-10, 8, -10);
-    scene.add(bluePoint);
+    // Subtle cool accent light for atmosphere
+    const accentPoint = new THREE.PointLight(0x32ADE6, 3.0, 40);
+    accentPoint.position.set(-10, 8, -10);
+    scene.add(accentPoint);
 
     // 6. Floor & Spatial Grid
     const floorGeo = new THREE.PlaneGeometry(36, 24);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x0F172A,
+      color: 0x1C1C1E,
       roughness: 0.8,
       metalness: 0.2,
     });
@@ -108,7 +108,7 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
     floor.receiveShadow = true;
     scene.add(floor);
 
-    const gridHelper = new THREE.GridHelper(36, 36, 0x06B6D4, 0x1E293B);
+    const gridHelper = new THREE.GridHelper(36, 36, 0x32ADE6, 0x2C2C2E);
     gridHelper.position.y = 0.01;
     scene.add(gridHelper);
 
@@ -143,7 +143,7 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
 
         // Add rack front server grill mesh
         const grillGeo = new THREE.PlaneGeometry(rackWidth * 0.85, rackHeight * 0.85);
-        const grillMat = new THREE.MeshBasicMaterial({ color: 0x0A0F1D });
+        const grillMat = new THREE.MeshBasicMaterial({ color: 0x161616 });
         const grill = new THREE.Mesh(grillGeo, grillMat);
         grill.position.set(0, 0, rackDepth / 2 + 0.01);
         rackMesh.add(grill);
@@ -173,7 +173,7 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
 
     cracPositions.forEach((crac) => {
       const cracMat = new THREE.MeshStandardMaterial({
-        color: 0x1E3A8A, // Navy Blue
+        color: 0x48484A, // Neutral steel
         roughness: 0.3,
         metalness: 0.7,
       });
@@ -182,9 +182,9 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
       cracMesh.castShadow = true;
       cracMesh.userData = { isCrac: true, cracId: crac.id, label: crac.label };
 
-      // Cyan intake fan ring
+      // Cool accent intake fan ring
       const ringGeo = new THREE.RingGeometry(0.3, 0.6, 16);
-      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00D4FF, side: THREE.DoubleSide });
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x32ADE6, side: THREE.DoubleSide });
       const ring = new THREE.Mesh(ringGeo, ringMat);
       ring.position.set(0, 0.4, 0.81);
       cracMesh.add(ring);
@@ -240,8 +240,8 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
 
-      // Subtle breathing light on blue point
-      bluePoint.intensity = 2.5 + Math.sin(elapsedTime * 2) * 0.5;
+      // Subtle breathing light on the accent point
+      accentPoint.intensity = 2.5 + Math.sin(elapsedTime * 2) * 0.5;
 
       controls.update();
       renderer.render(scene, camera);
@@ -350,11 +350,13 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
         </div>
 
         {/* Camera View Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-slate-950/80 backdrop-blur-md p-1 rounded-xl border border-slate-800 text-xs">
+        <div className="flex flex-wrap items-center gap-1 pointer-events-auto bg-white/[0.04] backdrop-blur-xl p-1 rounded-xl border border-white/10 text-xs shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
           <button
             onClick={() => applyCameraPreset('iso')}
             className={`px-2.5 py-1 rounded-lg transition-all ${
-              activePreset === 'iso' ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'
+              activePreset === 'iso'
+                ? 'bg-gradient-to-b from-cyan-400/30 via-cyan-500/15 to-cyan-500/10 text-cyan-200 font-semibold border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
             Isometric
@@ -362,7 +364,9 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
           <button
             onClick={() => applyCameraPreset('top')}
             className={`px-2.5 py-1 rounded-lg transition-all ${
-              activePreset === 'top' ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'
+              activePreset === 'top'
+                ? 'bg-gradient-to-b from-cyan-400/30 via-cyan-500/15 to-cyan-500/10 text-cyan-200 font-semibold border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
             2D Heatmap
@@ -370,7 +374,9 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
           <button
             onClick={() => applyCameraPreset('cold')}
             className={`px-2.5 py-1 rounded-lg transition-all ${
-              activePreset === 'cold' ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'
+              activePreset === 'cold'
+                ? 'bg-gradient-to-b from-cyan-400/30 via-cyan-500/15 to-cyan-500/10 text-cyan-200 font-semibold border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
             Aisle Walk
@@ -378,7 +384,9 @@ export default function ThreeDHeatmap({ spatialGrid = [], onSelectRack, selected
           <button
             onClick={() => applyCameraPreset('crac')}
             className={`px-2.5 py-1 rounded-lg transition-all ${
-              activePreset === 'crac' ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/40' : 'text-slate-400 hover:text-slate-200'
+              activePreset === 'crac'
+                ? 'bg-gradient-to-b from-cyan-400/30 via-cyan-500/15 to-cyan-500/10 text-cyan-200 font-semibold border border-white/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.25)]'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
             }`}
           >
             CRAC North
