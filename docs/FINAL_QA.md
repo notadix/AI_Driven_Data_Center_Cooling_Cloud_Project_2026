@@ -1,12 +1,12 @@
 # Final QA Report
 
-**Date**: 2026-09-21  ·  **Branch**: `main`
+**Date**: 2026-09-21, updated 2026-09-22 (real AWS deployment + Cognito auth)  ·  **Branch**: `main`
 
 ## Automated tests
 
 | Suite | Result |
 |---|---|
-| `python -m pytest testing/` | **375 passed, 10 skipped without LocalStack; 385 passed, 0 skipped with it.** The 10 skipped tests need a running LocalStack container and skip themselves when it is unreachable. |
+| `python -m pytest testing/` | **382 passed, 10 skipped without LocalStack; 392 passed, 0 skipped with it.** The 10 skipped tests need a running LocalStack container and skip themselves when it is unreachable. (7 of the 382 are new Cognito auth tests, `testing/test_cognito_auth.py`.) |
 | `npm test` in `src/frontend` | **10 passed** (pure dashboard logic: rack grid, facility totals, status and carbon bands, alarm de-duplication) |
 | `python -m pyflakes src database dataset scripts` | no findings |
 | `npm run build` in `src/frontend` | succeeds |
@@ -79,14 +79,29 @@ prediction leaves the safe band. The preview uses the same physics as the simula
   control target, forecast and explanation follow the unit), manual mode with preview, apply, emergency cooling,
   return to auto, recovery after a backend outage (OFFLINE → REST polling → LIVE in about 12 s), no console errors
   on a clean page load.
-* **LocalStack**: with `localstack/localstack:3.3` running the whole suite passes (385, no skips): S3/SNS/EventBridge
+* **LocalStack**: with `localstack/localstack:3.3` running the whole suite passes (392, no skips): S3/SNS/EventBridge
   bootstrap, all six Step Functions test-workflow branches, and the Timestream outage fallback. See
   `docs/LOCALSTACK.md` and `docs/evidence/step_functions_run.md`.
+* **Real AWS, 2026-09-22**: EC2 backend (health check + browser-verified live dashboard), S3 frontend,
+  DynamoDB write-through (hundreds of live records), Lambda (real invoke), two Step Functions state
+  machines (one with a real Lambda step + real SNS publish, both executed successfully), SNS
+  (confirmed email subscription), API Gateway HTTPS (curl-verified), Cognito (full login flow tested
+  live in-browser: real sign-in, real backend token verification, correct role badge), TwinMaker
+  (workspace + scene + a real entity graph), Glue Data Catalog (real database + table schema), 2
+  CloudWatch alarms, 2 Budgets. A CORS misconfiguration was found and fixed during this pass — see
+  `docs/PROJECT_EXPLAINED.md` §3 for the full real-vs-blocked breakdown.
 
-## Not verified
+## Not verified / not done
 
-* The production state machine (needs the SageMaker task integration, unsupported on LocalStack
-  Community), Timestream, IoT Core data plane, SiteWise and TwinMaker, and anything on real AWS.
+* **CloudFront**: blocked — this AWS account needs identity verification before any CloudFront
+  distribution can be created (`AccessDenied`). A support case is pending.
+* **IoT Core live delivery**: the publish API call succeeds (HTTP 200) but the MQTT test client and
+  CloudWatch IoT metrics show nothing — likely a further account-verification gate, not a code defect.
+* **SiteWise**: blocked (`SubscriptionRequiredException`) — likely a one-time console-activation step,
+  not confirmed to need a paid AWS Support plan; not pursued further by choice.
+* SageMaker (a live inference endpoint), QuickSight, RDS, a customer-managed KMS key, ECS/EKS: not
+  built — each either has a real ongoing cost with no functional benefit here, or (ECS/EKS) meaningful
+  re-platforming risk for no functional gain over the EC2 deployment already running.
 * The GitHub Actions workflow (`.github/workflows/ci.yml`) has not run on GitHub.
 * No controller has run on a physical plant (out of scope for this software project).
 

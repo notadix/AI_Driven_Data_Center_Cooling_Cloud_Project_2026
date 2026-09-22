@@ -12,6 +12,9 @@ Environment variables:
   AWS_ACCESS_KEY_ID     — AWS / LocalStack access key (default: unset)
   AWS_SECRET_ACCESS_KEY — AWS / LocalStack secret key (default: unset)
   AWS_REGION            — AWS region (default: us-east-1)
+  DYNAMODB_TELEMETRY_TABLE — optional: also durably write every record to this DynamoDB table
+                             (real AWS Timestream for LiveAnalytics is closed to new accounts as of
+                             2025-06-20, so this is the durable cloud store on a fresh account).
 """
 
 import logging
@@ -21,6 +24,7 @@ import time
 import threading
 from collections import deque
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import boto3
@@ -195,6 +199,24 @@ class TimestreamClient:
         self._store = InMemoryTimestreamStore()
         self._write_client = None
         self._query_client = None
+
+        # Optional DynamoDB write-through: real AWS Timestream for LiveAnalytics closed to new
+        # accounts on 2025-06-20, so on a fresh account there is no cloud time-series service to
+        # write to. When DYNAMODB_TELEMETRY_TABLE is set, every telemetry record is *also* durably
+        # persisted to that DynamoDB table, independent of local_mode/Timestream availability above.
+        # This does not change the read/query path (still the in-memory store + Timestream query
+        # client) so existing tests and behaviour are unaffected; it only adds a real, durable write.
+        self._dynamo_table = None
+        dynamo_table_name = os.environ.get("DYNAMODB_TELEMETRY_TABLE")
+        if dynamo_table_name:
+            try:
+                dynamo_kwargs = _build_boto3_kwargs(self.REGION)
+                self._dynamo_table = boto3.resource("dynamodb", **dynamo_kwargs).Table(dynamo_table_name)
+                logger.info("DynamoDB telemetry write-through enabled: table=%s", dynamo_table_name)
+            except Exception as e:
+                logger.warning("DynamoDB write-through init failed, disabling it: %s", e)
+                self._dynamo_table = None
+        self._dynamo_failures = 0
         # Circuit breaker: when Timestream errors (service not available on LocalStack Community,
         # throttling, an outage, expired credentials) telemetry keeps flowing into the in-memory
         # store and reads are served from it, instead of every write logging an error and history /
@@ -280,6 +302,7 @@ class TimestreamClient:
             "raw": payload,
         }
         self._store.write([local_record])
+        self._dynamo_write(payload, now_ms)
 
         if not self._cloud_ready():
             return True     # local mode, or the cloud is temporarily down: the record is kept in memory
@@ -301,6 +324,34 @@ class TimestreamClient:
         except BotoCoreError as e:
             self._cloud_failed(e)
         return False
+
+    def _dynamo_write(self, payload: Dict[str, Any], now_ms: int) -> None:
+        """Best-effort durable write to DynamoDB. Never raises: a failure here must not break
+        telemetry ingestion, which is already served by the in-memory store / Timestream above."""
+        if self._dynamo_table is None:
+            return
+        try:
+            facility_id = str(payload.get("facility_id", "unknown"))
+            crac_id = str(payload.get("crac_id", "unknown"))
+            item = {
+                "facility_crac": f"{facility_id}#{crac_id}",
+                "timestamp": now_ms,
+                "facility_id": facility_id,
+                "crac_id": crac_id,
+                "rack_id": str(payload.get("rack_id", "unknown")),
+            }
+            for m in self.TELEMETRY_MEASURES:
+                if m in payload and payload[m] is not None:
+                    item[m] = Decimal(str(payload[m]))
+            self._dynamo_table.put_item(Item=item)
+            if self._dynamo_failures:
+                logger.info("DynamoDB write-through reachable again after %d failure(s)", self._dynamo_failures)
+                self._dynamo_failures = 0
+        except Exception as e:
+            first = self._dynamo_failures == 0
+            self._dynamo_failures += 1
+            if first:
+                logger.warning("DynamoDB write-through failed (will keep retrying silently): %s", str(e)[:160])
 
     def write_telemetry_batch(self, payloads: List[Dict[str, Any]]) -> int:
         """Batch write up to 100 telemetry records. Returns count of successful writes."""

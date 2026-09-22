@@ -1,0 +1,116 @@
+{
+  "Comment": "AI-Driven Cooling Digital Twin - Drift Response Orchestration (real AWS). DetectModelDrift invokes the real cooling-twin-drift-detector Lambda and NotifySuccess/AlertValidationFailure publish to a real SNS topic. SageMaker training stays a Pass-state placeholder to avoid real training cost/time before the demo deadline; see step_functions_workflow.json for the full production design.",
+  "StartAt": "DetectModelDrift",
+  "States": {
+    "DetectModelDrift": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-1:222629887500:function:cooling-twin-drift-detector",
+        "Payload": {
+          "facility_id.$": "$.facility_id",
+          "window_hours.$": "$.window_hours"
+        }
+      },
+      "ResultSelector": {
+        "drift_detected.$": "$.Payload.drift_detected",
+        "severity.$": "$.Payload.severity",
+        "scores.$": "$.Payload.scores"
+      },
+      "ResultPath": "$.drift",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "States.TaskFailed"],
+          "IntervalSeconds": 5,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Next": "EvaluateDriftSeverity"
+    },
+    "EvaluateDriftSeverity": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.drift.drift_detected",
+          "BooleanEquals": false,
+          "Next": "NoActionRequired"
+        },
+        {
+          "Variable": "$.drift.severity",
+          "StringEquals": "CRITICAL",
+          "Next": "EmergencyRetraining"
+        },
+        {
+          "Variable": "$.drift.severity",
+          "StringEquals": "HIGH",
+          "Next": "PrioritizedRetraining"
+        }
+      ],
+      "Default": "StandardRetraining"
+    },
+    "NoActionRequired": {
+      "Type": "Pass",
+      "Result": {"status": "NO_DRIFT", "action": "none"},
+      "ResultPath": "$.outcome",
+      "End": true
+    },
+    "EmergencyRetraining": {
+      "Type": "Pass",
+      "Comment": "Placeholder: production calls SageMaker createTrainingJob (spot, emergency queue). Kept as Pass to avoid real training cost before the demo.",
+      "Result": {"training_job": "cooling-twin-emergency", "status": "Completed"},
+      "ResultPath": "$.training",
+      "Next": "RunModelValidation"
+    },
+    "PrioritizedRetraining": {
+      "Type": "Pass",
+      "Comment": "Placeholder: production calls SageMaker createTrainingJob (prioritized queue).",
+      "Result": {"training_job": "cooling-twin-prioritized", "status": "Completed"},
+      "ResultPath": "$.training",
+      "Next": "RunModelValidation"
+    },
+    "StandardRetraining": {
+      "Type": "Pass",
+      "Comment": "Placeholder: production calls SageMaker createTrainingJob (standard queue).",
+      "Result": {"training_job": "cooling-twin-standard", "status": "Completed"},
+      "ResultPath": "$.training",
+      "Next": "RunModelValidation"
+    },
+    "RunModelValidation": {
+      "Type": "Pass",
+      "Comment": "Placeholder: production calls a ValidationGateLambda against the new checkpoint's held-out metrics.",
+      "Result": {"mae": 0.031, "rmse": 0.044, "r2": 0.97, "passed": true},
+      "ResultPath": "$.validation",
+      "Next": "ValidationGateDecision"
+    },
+    "ValidationGateDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {"Variable": "$.validation.passed", "BooleanEquals": true, "Next": "NotifySuccess"}
+      ],
+      "Default": "AlertValidationFailure"
+    },
+    "NotifySuccess": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:222629887500:cooling-twin-alerts",
+        "Message.$": "States.Format('Cooling twin drift workflow: retraining validated and would deploy. severity={} training_job={}', $.drift.severity, $.training.training_job)",
+        "Subject": "Cooling Twin - Retraining Succeeded"
+      },
+      "ResultPath": "$.notification",
+      "End": true
+    },
+    "AlertValidationFailure": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "arn:aws:sns:us-east-1:222629887500:cooling-twin-alerts",
+        "Message": "Cooling twin drift workflow: model validation failed. Manual review required.",
+        "Subject": "Cooling Twin - Validation Failed"
+      },
+      "ResultPath": "$.notification",
+      "End": true
+    }
+  }
+}

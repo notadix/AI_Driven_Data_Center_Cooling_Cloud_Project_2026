@@ -241,7 +241,7 @@ A: The Docker container is not running.  Run `docker compose up -d localstack` f
 
 **Q: Tests are skipped with "LocalStack not running"**  
 A: This is expected when LocalStack is not running.  Start it or accept the skips.  
-They run and pass when LocalStack is up (385 pass, 0 skipped). The GitHub Actions workflow does not start LocalStack, so there they skip.
+They run and pass when LocalStack is up (392 pass, 0 skipped). The GitHub Actions workflow does not start LocalStack, so there they skip.
 
 **Q: `Timestream SKIPPED — not available on LocalStack Community`**  
 A: Expected.  This is a paid-tier service.  The backend in-memory telemetry store

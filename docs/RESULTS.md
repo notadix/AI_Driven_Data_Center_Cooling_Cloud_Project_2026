@@ -15,7 +15,7 @@ to"), this document replaces it with what was actually measured.
 | 2. Predictive thermal surrogate + load forecasting | FNO vs a 2D transport solver: R² 0.9999, MAE 0.034 °C, 5.1 ms vs 91 ms for the solver (**18×** faster at 128², 55× at 192²); load forecast beats persistence at ≥ 30 min (8.7% vs 9.4% MAPE at 60 min) | §2 · `results/fno_pde_eval.json`, `results/load_forecast_metrics.json` |
 | 3. Safe RL, 15–30% less cooling energy vs a Guideline-36 baseline, no SLA violations | vs a **static ASHRAE-style setpoint: −16.3% (CI 15.4–17.1%)**, inside the 15–30% range; vs PID −15.0%; vs the stronger Guideline-36-style reset rule −14.2% (CI 12.8–15.4%). 0 SLA violations; 5-seed mean −9.2% ± 4.9%. **Physical upper bound vs the GL36-style rule in this twin: −14.4%** (the agent captures 98.4%) | §3 · `results/rl_benchmark.json`, `results/energy_headroom.json` |
 | 4. Carbon- and water-aware optimisation | Load shifting −1.3…−2.1% facility CO₂; Safe-PPO −4.2…−7.3% water | §4 · `results/carbon_water.json` |
-| 5. Scalable, fault-tolerant pipeline; transfer / online learning | Zero-shot transfer −9.5% with 0 violations; sensor-fault guard; online calibration restores safety under plant drift. **LocalStack validated live; not deployed on AWS** | §5–6 · `results/transfer_learning.json` |
+| 5. Scalable, fault-tolerant pipeline; transfer / online learning | Zero-shot transfer −9.5% with 0 violations; sensor-fault guard; online calibration restores safety under plant drift. **Deployed on real AWS as of 2026-09-22** (LocalStack-validated first); see §6 for exactly what's real vs still blocked | §5–6 · `results/transfer_learning.json` |
 | 6. Baselines, explainability, reproducible benchmark | Constant, PID, GL36-style, standard PPO, Lagrangian-only, Safe-PPO; live gradient×input attribution | §3, §7 |
 
 ---
@@ -306,27 +306,58 @@ is negligible next to them.
 
 ## 6. Cloud and deployment status
 
-The AWS integration code (IoT Core, Timestream, SiteWise, TwinMaker, Step Functions, SageMaker
-handlers, CloudFormation) is unit-tested in local mode and against mocked clients. It was also run
-against **LocalStack Community 3.3** (free, no AWS account): with the backend in `LOCAL_MODE=false`
-mode, S3, SNS, EventBridge and Step Functions (Pass/Choice) work, all six branches of the test
-workflow route correctly, and the suite passes with the live tests enabled (no skips left for
-LocalStack). Details and reproduction: `docs/LOCALSTACK.md`, `docs/evidence/step_functions_run.md`.
-
+**Updated 2026-09-22: deployed on real AWS**, not just LocalStack (account `222629887500`, region
+`us-east-1`). Before that, the AWS integration code (IoT Core, Timestream, SiteWise, TwinMaker, Step
+Functions, SageMaker handlers, CloudFormation) was unit-tested in local mode and run against
+**LocalStack Community 3.3** (free, no AWS account): S3, SNS, EventBridge and Step Functions
+(Pass/Choice) worked, all six branches of the test workflow routed correctly, and the suite passed
+with the live tests enabled. Details: `docs/LOCALSTACK.md`, `docs/evidence/step_functions_run.md`.
 That run found and fixed four real problems (UTF-8 handling in the bootstrap script, non-ASCII SNS
 subjects that real SNS would reject, BOMs in JSON, and Timestream failures making history and analytics
 empty; the client now degrades to its in-memory store).
 
-**Still not verified:** the production state machine (needs the SageMaker task integration, which
-Community rejects), Timestream, IoT Core data plane, SiteWise and TwinMaker (Pro-only on LocalStack), and
-anything on real AWS. A real-AWS free-tier deployment is the remaining phase.
+**Real AWS, verified working (not simulated, not LocalStack):**
+
+| Component | Real AWS status |
+|---|---|
+| Backend | Running on EC2, systemd-managed, publicly reachable |
+| Frontend | S3 static website, live, browser-verified |
+| IoT Core | Publish API call confirmed succeeding (HTTP 200); live message-broker delivery and CloudWatch metrics do not appear — likely a further account-verification tier on this account, not a code defect |
+| IoT Things | 12 real Thing resources registered (3 facilities × 4 CRAC units) |
+| DynamoDB | Real table, write-through from the backend, hundreds of live records (replaces Timestream — see below) |
+| Lambda | Real function (`cooling-twin-drift-detector`), confirmed invocable |
+| Step Functions | Two real state machines; a hybrid workflow with a real Lambda step and real SNS publish has executed successfully |
+| SNS | Real topic, email subscription |
+| API Gateway | Real HTTPS REST endpoint in front of the backend (does not carry the WebSocket stream — API Gateway's HTTP API type doesn't proxy WebSocket) |
+| Cognito | Real user pool, 3 RBAC groups, and a working end-to-end login flow wired into the dashboard (additive — no route requires a token) |
+| TwinMaker | Real workspace, a minimal scene, and a real entity graph (1 facility + 4 CRAC entities with real component-type properties) — not the full 64-rack graph |
+| Glue | Real Data Catalog database + table schema (metadata only; no Crawler or ETL job run, so no per-run cost) |
+| CloudWatch | Two real alarms (EC2 CPU, billing), wired to SNS |
+| Budgets | Two real budgets, both near $0 spend |
+
+**Timestream unavailable:** AWS closed Timestream for LiveAnalytics to new customers on 2025-06-20, so
+this account cannot provision it. DynamoDB is the real substitute, added as a write-through in
+`database/timestream_client.py` — the query/read path is untouched (still in-memory), so this changed
+nothing about correctness, only durability.
+
+**Still blocked or not done, honestly listed:**
+- **CloudFront**: blocked entirely — `AccessDenied: Your account must be verified before you can add
+  new CloudFront resources.` An AWS Support case is pending. Until resolved, both the frontend and the
+  backend's direct URL are plain `http://`, not `https://`.
+- **SiteWise**: blocked — `SubscriptionRequiredException`. Likely a one-time console-activation gate
+  (not confirmed to need a paid AWS Support plan), not attempted further by choice.
+- **SageMaker**: no live endpoint deployed — bills hourly even idle, a real ongoing cost with no
+  functional benefit over running inference inside the EC2 backend, which is what happens instead.
+- **QuickSight, RDS, KMS (customer-managed), ECS/EKS**: not built — each is either a real recurring
+  cost with no functional need here, or (ECS/EKS) meaningful re-platforming risk for no functional gain
+  over the direct EC2 deployment already running.
 
 ## 7. Explainability and system checks (Objective 6)
 
 Live gradient×input attribution over the 10 observation features
 (`GET /api/v1/control/explain/{facility}/{crac}`, shown on the dashboard). Test suite:
-run `python -m pytest testing/` (375 pass without LocalStack; 10 more run and pass when a
-LocalStack container is up, 385 in total). Frontend: `npm test` (10 unit tests) and `npm run build`
+run `python -m pytest testing/` (382 pass without LocalStack; 10 more run and pass when a
+LocalStack container is up, 392 in total). Frontend: `npm test` (10 unit tests) and `npm run build`
 succeed; the dashboard was exercised in a browser (three facilities, camera views, rack selection,
 control panel with the manual-command safety preview, emergency override, carbon-schedule and predictive
 panels, phone/tablet/desktop layouts, recovery after a backend outage) with no console errors. Details of
@@ -367,5 +398,5 @@ python scripts/make_result_charts.py                   # presentation/*.png
    grid profile shaped like `lambda_carbon_fetcher`); real grid data and job traces are absent.
 6. **Seed sensitivity:** five seeds per method; the spread (3.4–14.2%) is large. Training longer does not reduce it (§3b), and a fixed rule under the shield does as well as the
    learned agent, so the RL does not by itself explain the saving.
-7. **Cloud:** validated on LocalStack Community only; Pro-only services and the production state machine are unverified, and nothing has been deployed to AWS (§6).
+7. **Cloud:** deployed and verified on real AWS as of 2026-09-22, not just LocalStack (§6). Real gaps remain: CloudFront is blocked pending AWS account verification, IoT Core's live message-broker delivery isn't visible (the publish call itself succeeds), TwinMaker has a minimal entity graph rather than the full 64-rack one, and SageMaker/QuickSight/RDS/customer-managed KMS/ECS/EKS were deliberately not built (§6).
 8. Return-temperature (7.2%) and cooling-power (12.4%) fidelity miss the ≈ 2% target and cannot beat persistence in one-step-ahead form; inlet/outlet temperature, ambient temperature and grid carbon in the dataset are derived, not measured (see the provenance table).

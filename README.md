@@ -1,6 +1,6 @@
 # AI-Driven Sustainable Data Center Cooling Optimization Framework using Digital Twin Technology
 
-[![Tests](https://img.shields.io/badge/pytest-375%20passed%20(385%20with%20LocalStack)-brightgreen.svg)](testing/)
+[![Tests](https://img.shields.io/badge/pytest-382%20passed%20(392%20with%20LocalStack)-brightgreen.svg)](testing/)
 [![Dashboard tests](https://img.shields.io/badge/dashboard%20tests-10%20passed-brightgreen.svg)](src/frontend/tests/)
 [![Python](https://img.shields.io/badge/python-tested%20on%203.14-blue.svg)](requirements.txt)
 [![React](https://img.shields.io/badge/react-18.3-61dafb.svg)](src/frontend/)
@@ -19,7 +19,9 @@
 Everything below is measured by a script in this repo and recorded in `results/`
 (see **[`docs/RESULTS.md`](docs/RESULTS.md)** for method, per-seed numbers and limitations;
 figures are in **[`presentation/`](presentation/)**). All control results are from the
-calibrated simulator; nothing has run on a physical plant or on AWS. Frontier2023's ambient temperature, rack inlet/outlet temperature and grid carbon are derived by formula, not measured (see `docs/RESULTS.md`).
+calibrated simulator; nothing has run on a physical plant. The system **is deployed on real AWS**
+as of 2026-09-22 (see `docs/RESULTS.md` §6 for exactly what's real, what's blocked by the AWS account,
+and what's deliberately not built). Frontier2023's ambient temperature, rack inlet/outlet temperature and grid carbon are derived by formula, not measured (see `docs/RESULTS.md`).
 
 | Report objective | Measured result | Target met? |
 |---|---|:---:|
@@ -35,7 +37,7 @@ calibrated simulator; nothing has run on a physical plant or on AWS. Frontier202
 | Transfer across facilities | zero-shot -9.5% with 0 violations | yes |
 | Fault tolerance | sensor-fault guard + online calibration restore safety under drift | yes |
 | LocalStack live run | S3/SNS/EventBridge/Step Functions verified; Timestream falls back to memory (Pro-only on LocalStack) | yes |
-| AWS deployment | **not done** | no |
+| AWS deployment | **Real, running**: EC2 backend, S3 frontend, IoT Core, DynamoDB, Lambda, Step Functions, SNS, API Gateway, Cognito (full login flow), TwinMaker, Glue Catalog, CloudWatch, Budgets. Blocked by the AWS account itself: CloudFront, IoT Core live message delivery. Deliberately not built: SageMaker endpoint, QuickSight, RDS, customer-managed KMS, ECS/EKS (see `docs/RESULTS.md` §6) | mostly |
 
 The "Guideline-36-style" baseline is a reset-schedule controller written for this project, not a
 certified ASHRAE Guideline 36 implementation. RL results are seed-sensitive (3.4% to 14.2%).
@@ -135,7 +137,7 @@ npm run dev
 ### 3. Run Test Suite
 ```powershell
 $env:PYTHONPATH="."
-python -m pytest testing/ -v          # 375 pass, 10 skip without LocalStack (385 pass with it running)
+python -m pytest testing/ -v          # 382 pass, 10 skip without LocalStack (392 pass with it running)
 python -m pyflakes src database dataset scripts
 
 cd src/frontend
@@ -192,5 +194,5 @@ python scripts/make_result_charts.py
 │   ├── backend/              # FastAPI REST endpoints, WebSocket telemetry, auto-control loop
 │   ├── digital_twin/         # Gymnasium physics simulation environment
 │   └── frontend/             # React 18 + Vite + Three.js 3D operator dashboard
-└── testing/                  # Automated unit, integration, and E2E test suites (385 tests incl. 10 LocalStack live tests; plus 10 dashboard tests in src/frontend/tests)
+└── testing/                  # Automated unit, integration, and E2E test suites (392 tests incl. 10 LocalStack live tests; plus 10 dashboard tests in src/frontend/tests)
 ```

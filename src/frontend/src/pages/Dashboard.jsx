@@ -7,6 +7,7 @@ import SHAPExplanation from '../components/SHAPExplanation';
 import OperatorControlPanel from '../components/OperatorControlPanel';
 import CarbonSchedule from '../components/CarbonSchedule';
 import ForecastPanel from '../components/ForecastPanel';
+import OperatorLogin from '../components/OperatorLogin';
 import { carbonBand, coolingSharePct as coolingShare, pueVsTargetPct, slaOkPct as slaShare } from '../utils/rackGrid';
 import {
   Activity,
@@ -87,7 +88,11 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#070B14] text-slate-100 p-4 md:p-6 space-y-6 cyber-grid">
       {/* ── Top Header Navigation ──────────────────────────────────────────────── */}
-      <header className="glass-panel rounded-2xl px-6 py-4 flex flex-wrap items-center justify-between gap-4 border border-slate-800">
+      <header className="glass-panel rounded-2xl px-6 py-4 flex flex-wrap items-center justify-between gap-4 border border-slate-800 relative z-30">
+        {/* relative z-30: header's own backdrop-filter creates a stacking context, so without an
+            explicit z-index here the OperatorLogin popover (z-50, but scoped to that context) paints
+            *behind* the KPI cards below, which have their own glass-panel stacking contexts and come
+            later in DOM order. */}
         <div className="flex items-center space-x-4">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center shadow-glow-cyan">
             <Server className="w-5 h-5 text-slate-950 font-bold" />
@@ -139,6 +144,8 @@ export default function Dashboard() {
             <ShieldCheck className="w-4 h-4" />
             <span>{slaOkPct === null ? 'SLA --' : `${slaOkPct.toFixed(1)}% racks in SLA`}</span>
           </div>
+
+          <OperatorLogin />
         </div>
       </header>
 
