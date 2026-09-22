@@ -12,12 +12,12 @@ Dual-mode:
   - Local / Offline: Logs drift events to the local bus and console.
 
 Environment variables:
-  LOCAL_MODE            — "true" forces local-only mode (default: "false").
-  AWS_ENDPOINT_URL      — Override boto3 endpoint for LocalStack.
-  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — Optional credential override.
-  STEP_FUNCTIONS_ARN    — State machine ARN to trigger.
-  EVENT_BUS_NAME        — EventBridge bus name (default: "default").
-  SNS_ALERT_TOPIC_ARN   — SNS topic for drift alerts.
+  LOCAL_MODE            - "true" forces local-only mode (default: "false").
+  AWS_ENDPOINT_URL      - Override boto3 endpoint for LocalStack.
+  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY - Optional credential override.
+  STEP_FUNCTIONS_ARN    - State machine ARN to trigger.
+  EVENT_BUS_NAME        - EventBridge bus name (default: "default").
+  SNS_ALERT_TOPIC_ARN   - SNS topic for drift alerts.
 """
 
 import json
@@ -231,7 +231,7 @@ class DriftDetector:
         return drift_detected, "MODERATE" if drift_detected else "NONE"
 
     def check_drift(self) -> Dict[str, Any]:
-        """Main drift check — returns structured result dict."""
+        """Main drift check - returns structured result dict."""
         records = self._fetch_recent_telemetry()
         scores = self._compute_drift_scores(records)
         drift_detected, severity = self._classify_severity(scores)

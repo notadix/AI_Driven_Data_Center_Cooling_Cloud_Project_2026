@@ -7,12 +7,12 @@ Dual-mode:
   - Local / Offline: Falls back to an in-memory ring buffer with identical query API.
 
 Environment variables:
-  LOCAL_MODE            — "true" to force in-memory mode (default: "false")
-  AWS_ENDPOINT_URL      — Override boto3 endpoint (e.g. LocalStack). Unset = real AWS.
-  AWS_ACCESS_KEY_ID     — AWS / LocalStack access key (default: unset)
-  AWS_SECRET_ACCESS_KEY — AWS / LocalStack secret key (default: unset)
-  AWS_REGION            — AWS region (default: us-east-1)
-  DYNAMODB_TELEMETRY_TABLE — optional: also durably write every record to this DynamoDB table
+  LOCAL_MODE            - "true" to force in-memory mode (default: "false")
+  AWS_ENDPOINT_URL      - Override boto3 endpoint (e.g. LocalStack). Unset = real AWS.
+  AWS_ACCESS_KEY_ID     - AWS / LocalStack access key (default: unset)
+  AWS_SECRET_ACCESS_KEY - AWS / LocalStack secret key (default: unset)
+  AWS_REGION            - AWS region (default: us-east-1)
+  DYNAMODB_TELEMETRY_TABLE - optional: also durably write every record to this DynamoDB table
                              (real AWS Timestream for LiveAnalytics is closed to new accounts as of
                              2025-06-20, so this is the durable cloud store on a fresh account).
 """
@@ -50,7 +50,7 @@ def _build_boto3_kwargs(region: str) -> Dict[str, Any]:
     return kwargs
 
 # facility_id/crac_id are interpolated directly into the query strings below
-# (f-string text, not a parameterized Timestream query) — reject anything
+# (f-string text, not a parameterized Timestream query) - reject anything
 # outside a safe identifier charset before it ever reaches SQL, regardless
 # of whether the caller already validated it (callers include a FastAPI
 # router with its own pattern check, but also a Lambda handler that reads
@@ -175,10 +175,10 @@ class TimestreamClient:
     """
     Unified Timestream client with automatic local-mode fallback.
     Environment variables:
-      TIMESTREAM_DB         — database name (default: CoolingTelemetry)
-      TIMESTREAM_TABLE      — table name   (default: TelemetryMetrics)
-      AWS_REGION            — AWS region   (default: us-east-1)
-      LOCAL_MODE            — "true" to force in-memory mode
+      TIMESTREAM_DB         - database name (default: CoolingTelemetry)
+      TIMESTREAM_TABLE      - table name   (default: TelemetryMetrics)
+      AWS_REGION            - AWS region   (default: us-east-1)
+      LOCAL_MODE            - "true" to force in-memory mode
     """
 
     DB_NAME = os.environ.get("TIMESTREAM_DB", "CoolingTelemetry")

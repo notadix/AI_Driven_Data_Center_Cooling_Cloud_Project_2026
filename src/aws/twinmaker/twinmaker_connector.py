@@ -12,9 +12,9 @@ Implements the three TwinMaker UDQ interface methods:
   - batch_put_property_values
 
 Environment variables:
-  LOCAL_MODE       — "true" to force local mode.
-  AWS_ENDPOINT_URL — Override boto3 endpoint (e.g. http://localhost:4566 for LocalStack).
-  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY — Optional credential override.
+  LOCAL_MODE       - "true" to force local mode.
+  AWS_ENDPOINT_URL - Override boto3 endpoint (e.g. http://localhost:4566 for LocalStack).
+  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY - Optional credential override.
 """
 
 import logging

@@ -1,17 +1,17 @@
 """
-Phase 2 Test Suite — Cloud IoT Ingestion, Backend API, and Orchestration.
+Phase 2 Test Suite - Cloud IoT Ingestion, Backend API, and Orchestration.
 
 Tests cover:
-  1. Physics simulator — determinism, ASHRAE bounds, cubic pump law
-  2. IoT publisher — telemetry data contract, local bus pub/sub
-  3. Timestream client — write path, history query, analytics (local mode)
-  4. TwinMaker UDQ connector — mock responses, Lambda handler routing
-  5. FastAPI REST API — telemetry and control endpoints (TestClient)
-  6. WebSocket stream — connection, filtering, ASHRAE annotation
-  7. Drift detector — PSI computation, severity classification, trigger logic
-  8. Drift trigger — Lambda handler round-trip
-  9. Control API — bounds validation, mode switching, setpoint override gate
-  10. Schema validation — TelemetryPayload / ControlPayload JSON round-trip
+  1. Physics simulator - determinism, ASHRAE bounds, cubic pump law
+  2. IoT publisher - telemetry data contract, local bus pub/sub
+  3. Timestream client - write path, history query, analytics (local mode)
+  4. TwinMaker UDQ connector - mock responses, Lambda handler routing
+  5. FastAPI REST API - telemetry and control endpoints (TestClient)
+  6. WebSocket stream - connection, filtering, ASHRAE annotation
+  7. Drift detector - PSI computation, severity classification, trigger logic
+  8. Drift trigger - Lambda handler round-trip
+  9. Control API - bounds validation, mode switching, setpoint override gate
+  10. Schema validation - TelemetryPayload / ControlPayload JSON round-trip
 """
 
 import numpy as np
@@ -867,12 +867,12 @@ def _localstack_reachable() -> bool:
 
 localstack_available = pytest.mark.skipif(
     not _localstack_reachable(),
-    reason="LocalStack not running — start with: docker compose up -d localstack",
+    reason="LocalStack not running - start with: docker compose up -d localstack",
 )
 
 
 class TestBoto3EndpointKwargs:
-    """Unit tests for _build_boto3_kwargs — no network calls required."""
+    """Unit tests for _build_boto3_kwargs - no network calls required."""
 
     def test_no_endpoint_url_returns_only_region(self, monkeypatch):
         monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
@@ -941,7 +941,7 @@ class TestBoto3EndpointKwargs:
 
 @localstack_available
 class TestLocalStackS3Integration:
-    """Integration tests against a live LocalStack — skipped when unavailable."""
+    """Integration tests against a live LocalStack - skipped when unavailable."""
 
     def test_s3_bucket_creation(self):
         import boto3 as real_boto3
@@ -1184,7 +1184,7 @@ class TestControlAPIMultiFacility:
         import src.backend.api.v1.control as ctrl
         # Put DC-EAST-01 CRAC-01 in manual mode
         ctrl._crac_modes[("DC-EAST-01", "CRAC-01")] = "manual"
-        # DC-WEST-02 CRAC-01 should still be in auto — RL action must not be blocked there
+        # DC-WEST-02 CRAC-01 should still be in auto - RL action must not be blocked there
         resp = client.post(
             "/api/v1/control/action/DC-WEST-02/CRAC-01",
             json={"delta_supply_c": -0.3, "source": "rl_agent"},
@@ -1212,7 +1212,7 @@ class TestControlAPIMultiFacility:
             "crac_units must have composite PK (facility_id, crac_id)"
         # old single-column PK must not exist for crac_id alone
         assert "crac_id             VARCHAR(64)  PRIMARY KEY" not in schema, \
-            "Single-column crac_id PK still present — migration incomplete"
+            "Single-column crac_id PK still present - migration incomplete"
 
     def test_schema_seed_has_three_facilities(self):
         """Verify all 3 facility IDs are seeded in postgres_schema.sql."""

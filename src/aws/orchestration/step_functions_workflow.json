@@ -1,5 +1,5 @@
 {
-  "Comment": "AI-Driven Cooling Digital Twin — MLOps Retraining & Drift Response Orchestration",
+  "Comment": "AI-Driven Cooling Digital Twin - MLOps Retraining & Drift Response Orchestration",
   "StartAt": "DetectModelDrift",
   "States": {
     "DetectModelDrift": {

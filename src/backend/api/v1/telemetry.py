@@ -1,12 +1,12 @@
 """
-Telemetry REST API — /api/v1/telemetry
+Telemetry REST API - /api/v1/telemetry
 
 Endpoints:
-  GET /latest                    — latest snapshot across all CRACs
-  GET /latest/{facility_id}      — latest snapshot for a facility
-  GET /history/{facility_id}     — paginated time-series history
-  GET /spatial/{facility_id}     — 8x8 spatial thermal field for heatmap
-  GET /analytics/{facility_id}   — PUE analytics and SLA violation rate
+  GET /latest                    - latest snapshot across all CRACs
+  GET /latest/{facility_id}      - latest snapshot for a facility
+  GET /history/{facility_id}     - paginated time-series history
+  GET /spatial/{facility_id}     - 8x8 spatial thermal field for heatmap
+  GET /analytics/{facility_id}   - PUE analytics and SLA violation rate
 """
 
 import logging
@@ -72,10 +72,10 @@ def _require_known_facility(facility_id: str, has_data: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# GET /latest  — full snapshot across all CRACs
+# GET /latest  - full snapshot across all CRACs
 # ---------------------------------------------------------------------------
 
-@router.get("/latest", summary="Latest telemetry snapshot — all CRACs")
+@router.get("/latest", summary="Latest telemetry snapshot - all CRACs")
 async def get_latest_all() -> JSONResponse:
     sim = get_simulator()
     latest = sim.get_latest_telemetry()
@@ -145,7 +145,7 @@ async def get_history(
 
 
 # ---------------------------------------------------------------------------
-# GET /spatial/{facility_id}  — 8x8 heatmap snapshot
+# GET /spatial/{facility_id}  - 8x8 heatmap snapshot
 # ---------------------------------------------------------------------------
 
 @router.get("/spatial/{facility_id}", summary="8×8 spatial thermal field for heatmap rendering")
@@ -201,7 +201,7 @@ async def get_spatial(facility_id: str = Path(..., pattern=_ID_PATTERN)) -> JSON
 
 
 # ---------------------------------------------------------------------------
-# GET /analytics/{facility_id}  — PUE + SLA metrics
+# GET /analytics/{facility_id}  - PUE + SLA metrics
 # ---------------------------------------------------------------------------
 
 @router.get("/analytics/{facility_id}", summary="PUE analytics and SLA violation rate")

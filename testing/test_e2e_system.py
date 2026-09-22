@@ -1,5 +1,5 @@
 """
-End-to-End (E2E) System Integration Test Suite — Phase 3.
+End-to-End (E2E) System Integration Test Suite - Phase 3.
 
 Validates the full closed-loop architecture:
   1. IoT Telemetry Ingestion -> Timestream -> FastAPI REST (/latest, /spatial, /analytics)
@@ -189,7 +189,7 @@ class TestE2ESafePPOActuationLoop:
     """Tests Safe-PPO policy inference connected to FastAPI control endpoints."""
 
     def test_safe_ppo_inference_and_dispatch(self, client):
-        # Ensure CRAC-01 is in auto mode — earlier tests in test_backend_iot.py
+        # Ensure CRAC-01 is in auto mode - earlier tests in test_backend_iot.py
         # may leave it in manual mode due to module-level _crac_modes shared state.
         client.post("/api/v1/control/mode/DC-EAST-01/CRAC-01", json={"mode": "auto"})
 
@@ -361,7 +361,7 @@ class TestE2ESHAPAttributions:
 
     def test_feature_attribution_magnitudes(self):
         # Real gradient x input attribution against the actual policy network,
-        # not a hardcoded stand-in — exercises src/ai/rl/explainability.py.
+        # not a hardcoded stand-in - exercises src/ai/rl/explainability.py.
         agent = SafePPOAgent(state_dim=10, action_dim=4)
         sample_obs = np.array(
             [18000.0, 22.0, 320.0, 18.5, 29.5, 4800.0, 22.5, 36.0, 2500.0, 1.13],

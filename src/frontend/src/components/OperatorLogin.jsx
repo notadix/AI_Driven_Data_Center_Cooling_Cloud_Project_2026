@@ -3,7 +3,7 @@ import { LogIn, LogOut, User, X } from 'lucide-react';
 import { API_BASE, COGNITO_CLIENT_ID, COGNITO_REGION } from '../config';
 
 // Real Cognito sign-in, called directly from the browser against Cognito's public
-// InitiateAuth endpoint (no SDK needed — it's a plain unauthenticated HTTPS/JSON call,
+// InitiateAuth endpoint (no SDK needed - it's a plain unauthenticated HTTPS/JSON call,
 // the client ID is not a secret). On success the ID token is verified for real by the
 // backend's /api/v1/auth/whoami (src/backend/api/v1/auth.py), which returns the
 // operator's Cognito groups. This is additive: signing in or out never blocks any

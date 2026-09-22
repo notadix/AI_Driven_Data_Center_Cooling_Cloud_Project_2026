@@ -1,5 +1,5 @@
 """
-WebSocket Telemetry Stream — /ws/stream
+WebSocket Telemetry Stream - /ws/stream
 
 Broadcasts live telemetry from the IoT local bus to all connected clients.
 Supports optional CRAC / facility filtering via query parameters.

@@ -1,6 +1,6 @@
 # LocalStack Development Guide
 
-**AI-Driven Cooling Digital Twin — Local AWS Emulation**
+**AI-Driven Cooling Digital Twin - Local AWS Emulation**
 
 This guide explains how to run the full cloud stack locally using
 [LocalStack Community](https://docs.localstack.cloud/getting-started/installation/)
@@ -27,7 +27,7 @@ This guide explains how to run the full cloud stack locally using
 │  │  S3       SNS       EventBridge    Step Functions            │  │
 │  │  (free)   (free)    (free)         (free, Pass/Choice only)  │  │
 │  │                                                              │  │
-│  │  Timestream / IoT SiteWise / TwinMaker: Pro only — skipped  │  │
+│  │  Timestream / IoT SiteWise / TwinMaker: Pro only - skipped  │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                     │
 │  Prometheus :9090   Grafana :3001                                  │
@@ -39,7 +39,7 @@ every `boto3.client(service, endpoint_url=AWS_ENDPOINT_URL)` call is
 redirected to LocalStack instead of real AWS.
 
 When `AWS_ENDPOINT_URL` is **unset** (the default for local development),
-the backend runs in `LOCAL_MODE=true` using in-memory stubs — no LocalStack
+the backend runs in `LOCAL_MODE=true` using in-memory stubs - no LocalStack
 or AWS credentials required.
 
 ---
@@ -93,7 +93,7 @@ Expected output (abridged):
 [INFO] [EventBridge] Bus ARN: arn:aws:events:us-east-1:000000000000:event-bus/cooling-digital-twin
 [INFO] [StepFunctions] Created CoolingTwinRetrainingStateMachine: arn:aws:states:...
 [INFO] [StepFunctions] Created CoolingTwinRetrainingTestStateMachine: arn:aws:states:...
-[WARNING] [Timestream] SKIPPED — not available on LocalStack Community
+[WARNING] [Timestream] SKIPPED - not available on LocalStack Community
 [INFO] === Done ===
 ```
 
@@ -229,7 +229,7 @@ analytics, control and `/metrics` all respond, and the log shows one Timestream 
 docker compose -f deployment/docker/docker-compose.yml down
 ```
 
-Resources in LocalStack are ephemeral — they are lost when the container stops.
+Resources in LocalStack are ephemeral - they are lost when the container stops.
 Re-run `bootstrap_localstack.py` after each restart.
 
 ---
@@ -243,7 +243,7 @@ A: The Docker container is not running.  Run `docker compose up -d localstack` f
 A: This is expected when LocalStack is not running.  Start it or accept the skips.  
 They run and pass when LocalStack is up (392 pass, 0 skipped). The GitHub Actions workflow does not start LocalStack, so there they skip.
 
-**Q: `Timestream SKIPPED — not available on LocalStack Community`**  
+**Q: `Timestream SKIPPED - not available on LocalStack Community`**  
 A: Expected.  This is a paid-tier service.  The backend in-memory telemetry store
 is used instead.  Upgrade to LocalStack Pro if you need Timestream locally.
 

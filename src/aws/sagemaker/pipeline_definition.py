@@ -134,7 +134,7 @@ def get_pipeline():
         return pipeline
 
     except ImportError:
-        print("[!] sagemaker SDK not installed — returning pipeline config dict for offline review.")
+        print("[!] sagemaker SDK not installed - returning pipeline config dict for offline review.")
         return {
             "pipeline": PIPELINE_NAME,
             "steps": [

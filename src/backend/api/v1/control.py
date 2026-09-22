@@ -1,11 +1,11 @@
 """
-Control REST API — /api/v1/control
+Control REST API - /api/v1/control
 
 Endpoints:
-  POST /action/{facility_id}/{crac_id}   — submit RL or manual control action
-  GET  /status/{facility_id}             — current control status for all CRACs in facility
-  POST /setpoint/{facility_id}/{crac_id} — direct setpoint override (manual mode)
-  POST /mode/{facility_id}/{crac_id}     — switch CRAC between 'auto' (RL) and 'manual' modes
+  POST /action/{facility_id}/{crac_id}   - submit RL or manual control action
+  GET  /status/{facility_id}             - current control status for all CRACs in facility
+  POST /setpoint/{facility_id}/{crac_id} - direct setpoint override (manual mode)
+  POST /mode/{facility_id}/{crac_id}     - switch CRAC between 'auto' (RL) and 'manual' modes
 
 State isolation:
   All per-CRAC state (_crac_modes, _last_actions) is keyed by the tuple
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ---------------------------------------------------------------------------
-# In-memory control state — keyed by (facility_id, crac_id)
+# In-memory control state - keyed by (facility_id, crac_id)
 # ---------------------------------------------------------------------------
 _crac_modes: Dict[Tuple[str, str], str] = {}    # (facility_id, crac_id) -> 'auto' | 'manual'
 _last_actions: Dict[Tuple[str, str], dict] = {}  # (facility_id, crac_id) -> last action
@@ -245,7 +245,7 @@ async def submit_action(
 
 
 # ---------------------------------------------------------------------------
-# POST /preview/{facility_id}/{crac_id}  — predict a manual command's effect (read-only)
+# POST /preview/{facility_id}/{crac_id}  - predict a manual command's effect (read-only)
 # ---------------------------------------------------------------------------
 
 @router.post("/preview/{facility_id}/{crac_id}", summary="Predict the zone inlet a manual command would produce (does not apply it)")
@@ -293,7 +293,7 @@ async def get_control_status(facility_id: str) -> JSONResponse:
 
 
 # ---------------------------------------------------------------------------
-# POST /setpoint/{facility_id}/{crac_id}  — manual setpoint override
+# POST /setpoint/{facility_id}/{crac_id}  - manual setpoint override
 # ---------------------------------------------------------------------------
 
 @router.post("/setpoint/{facility_id}/{crac_id}", summary="Direct setpoint override (manual mode only)")
@@ -338,7 +338,7 @@ async def set_setpoint(
 
 
 # ---------------------------------------------------------------------------
-# POST /mode/{facility_id}/{crac_id}  — switch auto/manual
+# POST /mode/{facility_id}/{crac_id}  - switch auto/manual
 # ---------------------------------------------------------------------------
 
 @router.post("/mode/{facility_id}/{crac_id}", summary="Switch CRAC between auto (RL) and manual control modes")
@@ -366,7 +366,7 @@ async def set_mode(
 
 
 # ---------------------------------------------------------------------------
-# GET /explain/{facility_id}/{crac_id}  — Live Safe-PPO Feature Attributions
+# GET /explain/{facility_id}/{crac_id}  - Live Safe-PPO Feature Attributions
 # ---------------------------------------------------------------------------
 
 @router.get("/explain/{facility_id}/{crac_id}", summary="Live feature attributions for CRAC policy control decisions")

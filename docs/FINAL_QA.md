@@ -88,19 +88,19 @@ prediction leaves the safe band. The preview uses the same physics as the simula
   (confirmed email subscription), API Gateway HTTPS (curl-verified), Cognito (full login flow tested
   live in-browser: real sign-in, real backend token verification, correct role badge), TwinMaker
   (workspace + scene + a real entity graph), Glue Data Catalog (real database + table schema), 2
-  CloudWatch alarms, 2 Budgets. A CORS misconfiguration was found and fixed during this pass — see
+  CloudWatch alarms, 2 Budgets. A CORS misconfiguration was found and fixed during this pass - see
   `docs/PROJECT_EXPLAINED.md` §3 for the full real-vs-blocked breakdown.
 
 ## Not verified / not done
 
-* **CloudFront**: blocked — this AWS account needs identity verification before any CloudFront
+* **CloudFront**: blocked - this AWS account needs identity verification before any CloudFront
   distribution can be created (`AccessDenied`). A support case is pending.
 * **IoT Core live delivery**: the publish API call succeeds (HTTP 200) but the MQTT test client and
-  CloudWatch IoT metrics show nothing — likely a further account-verification gate, not a code defect.
-* **SiteWise**: blocked (`SubscriptionRequiredException`) — likely a one-time console-activation step,
+  CloudWatch IoT metrics show nothing - likely a further account-verification gate, not a code defect.
+* **SiteWise**: blocked (`SubscriptionRequiredException`) - likely a one-time console-activation step,
   not confirmed to need a paid AWS Support plan; not pursued further by choice.
 * SageMaker (a live inference endpoint), QuickSight, RDS, a customer-managed KMS key, ECS/EKS: not
-  built — each either has a real ongoing cost with no functional benefit here, or (ECS/EKS) meaningful
+  built - each either has a real ongoing cost with no functional benefit here, or (ECS/EKS) meaningful
   re-platforming risk for no functional gain over the EC2 deployment already running.
 * The GitHub Actions workflow (`.github/workflows/ci.yml`) has not run on GitHub.
 * No controller has run on a physical plant (out of scope for this software project).

@@ -1,7 +1,7 @@
 {
   "workspace": {
     "workspaceId": "DataCenterCoolingTwin",
-    "description": "AI-Driven Hybrid Cooling Digital Twin — 8x8 spatial thermal scene",
+    "description": "AI-Driven Hybrid Cooling Digital Twin - 8x8 spatial thermal scene",
     "s3Location": "s3://digitaltwin-assets/twinmaker/scenes/"
   },
   "scene": {
@@ -50,7 +50,7 @@
       {
         "temp_c": 15.0,
         "color_hex": "#0000FF",
-        "label": "Cold — Below ASHRAE Min"
+        "label": "Cold - Below ASHRAE Min"
       },
       {
         "temp_c": 18.0,
@@ -70,12 +70,12 @@
       {
         "temp_c": 30.0,
         "color_hex": "#FF6600",
-        "label": "Elevated — Warning"
+        "label": "Elevated - Warning"
       },
       {
         "temp_c": 32.0,
         "color_hex": "#FF0000",
-        "label": "Critical — ASHRAE Max"
+        "label": "Critical - ASHRAE Max"
       }
     ],
     "opacity_range": [
@@ -104,7 +104,7 @@
     },
     {
       "entityId": "CRAC-01",
-      "entityName": "CRAC Unit 01 — North Zone",
+      "entityName": "CRAC Unit 01 - North Zone",
       "parentEntityId": "DC-EAST-01",
       "componentType": "CRACComponent",
       "position": [
@@ -167,7 +167,7 @@
     },
     {
       "entityId": "CRAC-02",
-      "entityName": "CRAC Unit 02 — South Zone",
+      "entityName": "CRAC Unit 02 - South Zone",
       "parentEntityId": "DC-EAST-01",
       "componentType": "CRACComponent",
       "position": [
@@ -230,7 +230,7 @@
     },
     {
       "entityId": "CRAC-03",
-      "entityName": "CRAC Unit 03 — East Wall",
+      "entityName": "CRAC Unit 03 - East Wall",
       "parentEntityId": "DC-EAST-01",
       "componentType": "CRACComponent",
       "position": [
@@ -293,7 +293,7 @@
     },
     {
       "entityId": "CRAC-04",
-      "entityName": "CRAC Unit 04 — West Wall",
+      "entityName": "CRAC Unit 04 - West Wall",
       "parentEntityId": "DC-EAST-01",
       "componentType": "CRACComponent",
       "position": [

@@ -1,8 +1,8 @@
 """
 Feature attribution for Safe-PPO control decisions.
 
-Uses gradient x input (saliency) attribution — a standard, cheap
-approximation of SHAP for differentiable policies — to explain how much
+Uses gradient x input (saliency) attribution - a standard, cheap
+approximation of SHAP for differentiable policies - to explain how much
 each observation dimension pushed the actor's setpoint decision.
 """
 

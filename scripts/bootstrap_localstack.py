@@ -1,5 +1,5 @@
 """
-LocalStack Bootstrap Script — Idempotent AWS Resource Provisioning.
+LocalStack Bootstrap Script - Idempotent AWS Resource Provisioning.
 
 Creates and verifies all AWS resources needed by the Cooling Digital Twin
 against a running LocalStack instance (default: http://localhost:4566).
@@ -15,10 +15,10 @@ Usage:
   python scripts/bootstrap_localstack.py [--endpoint http://localhost:4566]
 
 Environment variables (all optional, default to LocalStack dev creds):
-  AWS_ENDPOINT_URL      — LocalStack URL (default: http://localhost:4566)
-  AWS_ACCESS_KEY_ID     — fake key (default: test)
-  AWS_SECRET_ACCESS_KEY — fake secret (default: test)
-  AWS_DEFAULT_REGION    — region (default: us-east-1)
+  AWS_ENDPOINT_URL      - LocalStack URL (default: http://localhost:4566)
+  AWS_ACCESS_KEY_ID     - fake key (default: test)
+  AWS_SECRET_ACCESS_KEY - fake secret (default: test)
+  AWS_DEFAULT_REGION    - region (default: us-east-1)
 
 Note on LocalStack Community vs Pro:
   - S3, SNS, SQS, EventBridge, Step Functions: Community (free).
@@ -190,7 +190,7 @@ def provision_state_machines(endpoint: str, sns_arn: str) -> dict:
         definitions_to_create.append((TEST_STATE_MACHINE_NAME, TEST_WORKFLOW.read_text(encoding="utf-8-sig")))
     else:
         logger.info(
-            "[StepFunctions] Test workflow not found at %s — "
+            "[StepFunctions] Test workflow not found at %s - "
             "test SM will be created in Commit 4 (skipping now).",
             TEST_WORKFLOW,
         )

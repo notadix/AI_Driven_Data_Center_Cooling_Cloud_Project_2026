@@ -1,4 +1,4 @@
-# AI-Driven Cooling Digital Twin — backend & AI runtime dependencies.
+# AI-Driven Cooling Digital Twin - backend & AI runtime dependencies.
 # Generated from actual imports across src/, database/, dataset/, testing/,
 # pinned to the versions this repo's test suite (see docs/FINAL_QA.md for the current count) runs against.
 

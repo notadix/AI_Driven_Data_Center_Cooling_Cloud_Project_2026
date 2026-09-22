@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Regional climate constants — single source of truth, mirroring
+# Regional climate constants - single source of truth, mirroring
 # src/aws/serverless/lambda_weather_fetcher.py::REGIONAL_CLIMATE_BASE
 # ---------------------------------------------------------------------------
 
@@ -49,11 +49,11 @@ REGIONAL_CLIMATE_BASE = {
     "DC-EU-01":   {"base_dry_bulb": 15.0, "rh_base": 75.0, "diurnal_range": 6.0},
 }
 
-# Grid carbon intensity (gCO₂/kWh) per facility — used as the starting value
+# Grid carbon intensity (gCO₂/kWh) per facility - used as the starting value
 # for the PhysicsSimulator's carbon_gco2_kwh random walk.
 FACILITY_GRID_CARBON_GCOEKWH: Dict[str, float] = {
     "DC-EAST-01": 320.0,   # US East (mid-Atlantic, heavier coal/gas mix)
-    "DC-WEST-02": 180.0,   # US West (high renewables — Pacific Northwest hydro)
+    "DC-WEST-02": 180.0,   # US West (high renewables - Pacific Northwest hydro)
     "DC-EU-01":   210.0,   # EU Frankfurt (wind + nuclear)
 }
 
@@ -320,7 +320,7 @@ class AWSIoTPublisher:
 
     The endpoint for the iot-data client is resolved in order:
       1. AWS_IOT_ENDPOINT env var (original custom IoT endpoint like
-         xxxx.iot.us-east-1.amazonaws.com — used as-is with https://).
+         xxxx.iot.us-east-1.amazonaws.com - used as-is with https://).
       2. AWS_ENDPOINT_URL env var (LocalStack-style, already a full URL
          including scheme, used directly).
       Both paths pass AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY if present.
@@ -342,7 +342,7 @@ class AWSIoTPublisher:
         if aws_endpoint_url:
             endpoint_url = aws_endpoint_url
         else:
-            # Traditional IoT Core custom endpoint hostname — always HTTPS.
+            # Traditional IoT Core custom endpoint hostname - always HTTPS.
             ep = endpoint.lstrip("https://").lstrip("http://")
             endpoint_url = f"https://{ep}"
 
@@ -369,7 +369,7 @@ class AWSIoTPublisher:
 
 
 # ---------------------------------------------------------------------------
-# IoT Simulator — orchestrates simulators + publisher
+# IoT Simulator - orchestrates simulators + publisher
 # ---------------------------------------------------------------------------
 
 class IoTSimulator:
@@ -395,7 +395,7 @@ class IoTSimulator:
         _rcb = REGIONAL_CLIMATE_BASE
         _gcc = FACILITY_GRID_CARBON_GCOEKWH
         self.topology = topology or [
-            # DC-EAST-01 (US East, mid-Atlantic — warmest, highest grid carbon)
+            # DC-EAST-01 (US East, mid-Atlantic - warmest, highest grid carbon)
             {"facility_id": "DC-EAST-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01",
              "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
             {"facility_id": "DC-EAST-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01",
@@ -404,7 +404,7 @@ class IoTSimulator:
              "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
             {"facility_id": "DC-EAST-01", "crac_id": "CRAC-04", "rack_id": "RACK-E05",
              "ambient_c": _rcb["DC-EAST-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EAST-01"]},
-            # DC-WEST-02 (US West, Pacific Northwest — coolest US site, high renewables)
+            # DC-WEST-02 (US West, Pacific Northwest - coolest US site, high renewables)
             {"facility_id": "DC-WEST-02", "crac_id": "CRAC-01", "rack_id": "RACK-A01",
              "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
             {"facility_id": "DC-WEST-02", "crac_id": "CRAC-02", "rack_id": "RACK-E01",
@@ -413,7 +413,7 @@ class IoTSimulator:
              "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
             {"facility_id": "DC-WEST-02", "crac_id": "CRAC-04", "rack_id": "RACK-E05",
              "ambient_c": _rcb["DC-WEST-02"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-WEST-02"]},
-            # DC-EU-01 (EU Frankfurt — lowest ambient, mixed-clean grid)
+            # DC-EU-01 (EU Frankfurt - lowest ambient, mixed-clean grid)
             {"facility_id": "DC-EU-01", "crac_id": "CRAC-01", "rack_id": "RACK-A01",
              "ambient_c": _rcb["DC-EU-01"]["base_dry_bulb"], "grid_carbon_gco2_kwh": _gcc["DC-EU-01"]},
             {"facility_id": "DC-EU-01", "crac_id": "CRAC-02", "rack_id": "RACK-E01",
@@ -487,7 +487,7 @@ class IoTSimulator:
             control:     Dict of actuator setpoints.
             facility_id: Optional facility scope.  When provided only the
                          simulator matching that exact (facility_id, crac_id)
-                         pair is updated — necessary when multiple facilities
+                         pair is updated - necessary when multiple facilities
                          share the same crac_id values (e.g. every facility
                          has a 'CRAC-01').  When omitted the first simulator
                          whose crac_id matches is updated (backward-compat

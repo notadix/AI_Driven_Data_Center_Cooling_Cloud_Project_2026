@@ -47,7 +47,7 @@ count as evidence:
 
 | Quantity (measured) | MAPE, original constants | MAPE, calibrated physics | Synchronised twin, 1 step ahead | Persistence (repeat last reading) | Report target |
 |---|:---:|:---:|:---:|:---:|:---:|
-| PUE | 3.78% | **0.65%** | **0.18%** | 0.24% | ≈ 2% — **met** |
+| PUE | 3.78% | **0.65%** | **0.18%** | 0.24% | ≈ 2% - **met** |
 | Cooling power | 91.7% | 12.4% | 4.0% | 3.26% | not met |
 | Return temperature | 7.7% | 7.2% | 5.4% | 2.76% | not met |
 | **Mean of the three** | 34.4% | **6.8%** | | | |
@@ -135,7 +135,7 @@ episodes each.
 |---|:---:|:---:|:---:|
 | Constant setpoint | 26,204 | +1.5% | 10.49% |
 | PID | 25,831 | 0.0% | 0.00% |
-| Guideline-36-style rule | 25,820 | — | 0.07% |
+| Guideline-36-style rule | 25,820 | - | 0.07% |
 | **Safe-PPO + shield (selected seed 0)** | **22,048** | **−14.2%** (CI 12.8–15.4%) | **0.00%** |
 
 The selected agent is also −15.0% vs PID and −16.3% vs the constant setpoint; mean PUE 1.046
@@ -271,7 +271,7 @@ trade-off curve. WUE from the live simulator with no controller in the loop
 | Zero-shot (source policy, no retraining) | **9.5% ± 2.3** | 0.0% |
 | Fine-tuned 20 / 60 / 120 episodes | 7.5% / 8.6% / 8.5% | 0.0% |
 | Trained from scratch, same 20 / 60 / 120 episodes | −2.5% / −1.1% / −1.9% | 0.0% |
-| Trained from scratch, full budget (400 episodes) | 0.7% ± 2.2 | — |
+| Trained from scratch, full budget (400 episodes) | 0.7% ± 2.2 | - |
 
 A policy trained at one facility transfers to a facility with a different climate and grid with
 no loss in safety and clearly beats short retraining on the target. Fine-tuning did not improve
@@ -322,33 +322,33 @@ empty; the client now degrades to its in-memory store).
 |---|---|
 | Backend | Running on EC2, systemd-managed, publicly reachable |
 | Frontend | S3 static website, live, browser-verified |
-| IoT Core | Publish API call confirmed succeeding (HTTP 200); live message-broker delivery and CloudWatch metrics do not appear — likely a further account-verification tier on this account, not a code defect |
+| IoT Core | Publish API call confirmed succeeding (HTTP 200); live message-broker delivery and CloudWatch metrics do not appear - likely a further account-verification tier on this account, not a code defect |
 | IoT Things | 12 real Thing resources registered (3 facilities × 4 CRAC units) |
-| DynamoDB | Real table, write-through from the backend, hundreds of live records (replaces Timestream — see below) |
+| DynamoDB | Real table, write-through from the backend, hundreds of live records (replaces Timestream - see below) |
 | Lambda | Real function (`cooling-twin-drift-detector`), confirmed invocable |
 | Step Functions | Two real state machines; a hybrid workflow with a real Lambda step and real SNS publish has executed successfully |
 | SNS | Real topic, email subscription |
-| API Gateway | Real HTTPS REST endpoint in front of the backend (does not carry the WebSocket stream — API Gateway's HTTP API type doesn't proxy WebSocket) |
-| Cognito | Real user pool, 3 RBAC groups, and a working end-to-end login flow wired into the dashboard (additive — no route requires a token) |
-| TwinMaker | Real workspace, a minimal scene, and a real entity graph (1 facility + 4 CRAC entities with real component-type properties) — not the full 64-rack graph |
+| API Gateway | Real HTTPS REST endpoint in front of the backend (does not carry the WebSocket stream - API Gateway's HTTP API type doesn't proxy WebSocket) |
+| Cognito | Real user pool, 3 RBAC groups, and a working end-to-end login flow wired into the dashboard (additive - no route requires a token) |
+| TwinMaker | Real workspace, a minimal scene, and a real entity graph (1 facility + 4 CRAC entities with real component-type properties) - not the full 64-rack graph |
 | Glue | Real Data Catalog database + table schema (metadata only; no Crawler or ETL job run, so no per-run cost) |
 | CloudWatch | Two real alarms (EC2 CPU, billing), wired to SNS |
 | Budgets | Two real budgets, both near $0 spend |
 
 **Timestream unavailable:** AWS closed Timestream for LiveAnalytics to new customers on 2025-06-20, so
 this account cannot provision it. DynamoDB is the real substitute, added as a write-through in
-`database/timestream_client.py` — the query/read path is untouched (still in-memory), so this changed
+`database/timestream_client.py` - the query/read path is untouched (still in-memory), so this changed
 nothing about correctness, only durability.
 
 **Still blocked or not done, honestly listed:**
-- **CloudFront**: blocked entirely — `AccessDenied: Your account must be verified before you can add
+- **CloudFront**: blocked entirely - `AccessDenied: Your account must be verified before you can add
   new CloudFront resources.` An AWS Support case is pending. Until resolved, both the frontend and the
   backend's direct URL are plain `http://`, not `https://`.
-- **SiteWise**: blocked — `SubscriptionRequiredException`. Likely a one-time console-activation gate
+- **SiteWise**: blocked - `SubscriptionRequiredException`. Likely a one-time console-activation gate
   (not confirmed to need a paid AWS Support plan), not attempted further by choice.
-- **SageMaker**: no live endpoint deployed — bills hourly even idle, a real ongoing cost with no
+- **SageMaker**: no live endpoint deployed - bills hourly even idle, a real ongoing cost with no
   functional benefit over running inference inside the EC2 backend, which is what happens instead.
-- **QuickSight, RDS, KMS (customer-managed), ECS/EKS**: not built — each is either a real recurring
+- **QuickSight, RDS, KMS (customer-managed), ECS/EKS**: not built - each is either a real recurring
   cost with no functional need here, or (ECS/EKS) meaningful re-platforming risk for no functional gain
   over the direct EC2 deployment already running.
 

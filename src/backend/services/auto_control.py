@@ -1,5 +1,5 @@
 """
-Auto-control loop — closes the gap between the 'auto' operator mode and
+Auto-control loop - closes the gap between the 'auto' operator mode and
 anything actually driving the CRACs while in it.
 
 Previously, 'auto' mode only gated manual setpoint overrides (see

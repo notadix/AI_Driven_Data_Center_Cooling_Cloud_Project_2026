@@ -40,13 +40,13 @@ graph LR
 
 Everything below section "1." onward is the **original plan**, written before work started. In
 practice the branch strategy shown above (one feature branch per phase, three sequential PRs) was
-not followed literally — work was more iterative than the plan describes, and most integration
+not followed literally - work was more iterative than the plan describes, and most integration
 passes, bug sweeps, and the final real-AWS deployment were committed from one account. This section
 replaces the plan with what the git log (`git log --format='%an|%s'`) actually shows, so it is not
 overstated. Commit counts: **48 by Aditya Roy, 7 by Snigda Chandanala, 6 by Govind Innani.** A lower
-commit count does not mean a smaller real contribution — see each person's list below.
+commit count does not mean a smaller real contribution - see each person's list below.
 
-### Aditya Roy — AI, digital twin, and final system integration
+### Aditya Roy - AI, digital twin, and final system integration
 - **Phase 1 core** (as planned): real Frontier2023 dataset download, FNO thermal surrogate, Safe-PPO
   agent with a model-based safety shield, the calibrated digital-twin physics environment, an MPC
   baseline, and the ablation study that isolates the safety shield's measured value.
@@ -56,22 +56,22 @@ commit count does not mean a smaller real contribution — see each person's lis
   manual-command safety preview feature.
 - Multiple full backend/frontend bug-hunt passes across the whole app (most of the "fix:" commits),
   the automated test suite, and CI configuration.
-- The final measured-results write-up, the QA/report documents, and — beyond the original plan
-  entirely — the **real AWS cloud deployment** on 2026-09-22 (EC2, S3, DynamoDB, Lambda, Step
+- The final measured-results write-up, the QA/report documents, and - beyond the original plan
+  entirely - the **real AWS cloud deployment** on 2026-09-22 (EC2, S3, DynamoDB, Lambda, Step
   Functions, SNS, API Gateway, Cognito with a working login flow, TwinMaker entities, Glue Data
   Catalog, CloudWatch, Budgets).
 
-### Snigda Chandanala — cloud IoT and backend platform (7 commits)
+### Snigda Chandanala - cloud IoT and backend platform (7 commits)
 - `feat(phase2)`: the initial IoT ingestion simulator, FastAPI backend skeleton, TwinMaker connector,
   and orchestration code (`drift_trigger.py`).
 - Multi-facility topology with per-facility control isolation (3 sites, independently controlled).
-- `AWS_ENDPOINT_URL` support added across every boto3 client, plus the LocalStack bootstrap script —
+- `AWS_ENDPOINT_URL` support added across every boto3 client, plus the LocalStack bootstrap script -
   the plumbing that let the whole project test its AWS code for free before any real account existed.
 - The scrape-time Prometheus `/metrics` endpoint (monitoring).
 - The Pass-only Step Functions test workflow, with real LocalStack execution evidence.
 - `docs/LOCALSTACK.md` (the LocalStack development guide).
 
-### Govind Innani — dashboard, explainability, and final QA (6 commits)
+### Govind Innani - dashboard, explainability, and final QA (6 commits)
 - The live feature-attribution explainability API endpoint (`GET /api/v1/control/explain/...`) on the
   backend, and wiring the `SHAPExplanation.jsx` component on the frontend to actually call it, instead
   of showing a hardcoded example.
@@ -90,8 +90,8 @@ arguing about the count.
 
 **Process.** The plan called for 3 sequential feature branches, one PR each, merged in strict order
 (Aditya → Snigda → Govind), each phase handing a stable API to the next. In practice, each person did
-land an initial phase close to the plan, but almost everything after that — cross-stack bug fixing,
-integration, and the AWS deployment — happened on one account instead of being re-distributed back
+land an initial phase close to the plan, but almost everything after that - cross-stack bug fixing,
+integration, and the AWS deployment - happened on one account instead of being re-distributed back
 across the three branches. The hand-off pipeline in the diagram above didn't happen as drawn; it was
 more iterative and centralised than planned.
 
@@ -99,9 +99,9 @@ more iterative and centralised than planned.
 
 | Person | Planned scope | What they actually built |
 |---|---|---|
-| Aditya | AI/ML and the digital twin only (FNO, Safe-PPO, twin, SageMaker MLOps) | All of that, **plus** most cross-stack integration and bug fixing, the test suite, the water/forecaster/carbon models, **and** the entire real AWS deployment — services well outside his planned scope |
+| Aditya | AI/ML and the digital twin only (FNO, Safe-PPO, twin, SageMaker MLOps) | All of that, **plus** most cross-stack integration and bug fixing, the test suite, the water/forecaster/carbon models, **and** the entire real AWS deployment - services well outside his planned scope |
 | Snigda | The full IoT/backend/cloud platform: IoT Core, SiteWise, TwinMaker, Timestream, RDS, FastAPI, Step Functions, EventBridge, ECS/EKS | Landed the real starting pieces (IoT simulator, FastAPI skeleton, TwinMaker connector, orchestration code), multi-facility topology, `/metrics`, and the LocalStack plumbing. **SiteWise, Timestream, RDS and ECS/EKS from her planned scope were never built by anyone** |
-| Govind | Full-stack UI plus CloudFront, S3, API Gateway, Cognito, Lambda, CloudWatch | Landed the dashboard, the explainability endpoint and its UI wiring, E2E test fixes, charts, and the original results docs. **CloudFront, Cognito and CloudWatch from his planned scope were not built by him** — Cognito and CloudWatch were added later as part of the AWS deployment push, and CloudFront remains blocked by AWS itself |
+| Govind | Full-stack UI plus CloudFront, S3, API Gateway, Cognito, Lambda, CloudWatch | Landed the dashboard, the explainability endpoint and its UI wiring, E2E test fixes, charts, and the original results docs. **CloudFront, Cognito and CloudWatch from his planned scope were not built by him** - Cognito and CloudWatch were added later as part of the AWS deployment push, and CloudFront remains blocked by AWS itself |
 
 **Services: planned vs. what's actually real:**
 
@@ -109,14 +109,14 @@ more iterative and centralised than planned.
 |---|---|
 | Built roughly as planned | IoT Core, TwinMaker (Snigda's scope); dashboard, SHAP, explainability (Govind's scope); FNO, Safe-PPO, the twin (Aditya's scope) |
 | Planned, but never built by anyone | Timestream (turned out unavailable to new AWS accounts), RDS, ECS/EKS, QuickSight, a live SageMaker endpoint (all skipped as real cost with no functional benefit), SiteWise (blocked by an account gate) |
-| Built, but **not assigned to anyone in the plan** | DynamoDB (the real Timestream substitute), API Gateway HTTPS, a real working Cognito login flow, the Glue Data Catalog, IoT Things, the TwinMaker entity graph, Lambda, a real Step Functions execution, SNS, CloudWatch, Budgets — all added during the AWS deployment push, not attributed to any one person's original phase |
+| Built, but **not assigned to anyone in the plan** | DynamoDB (the real Timestream substitute), API Gateway HTTPS, a real working Cognito login flow, the Glue Data Catalog, IoT Things, the TwinMaker entity graph, Lambda, a real Step Functions execution, SNS, CloudWatch, Budgets - all added during the AWS deployment push, not attributed to any one person's original phase |
 | Blocked by AWS itself, an outcome the plan didn't anticipate | CloudFront, IoT Core's live message-broker delivery |
 
 **Bottom line:** the plan assigned cloud services along strict per-person boundaries; reality blurred
 those boundaries. The real, deployed system spans services from all three people's planned scopes
 (IoT Core was Snigda's, Cognito/CloudWatch were Govind's, the deployment work itself was Aditya's),
 plus several real services nobody was originally assigned. Most of what the plan intended did get
-built somewhere in the project — just not always by the person or on the branch the plan assigned it
+built somewhere in the project - just not always by the person or on the branch the plan assigned it
 to.
 
 ---

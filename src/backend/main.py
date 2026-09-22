@@ -1,12 +1,12 @@
 """
-FastAPI Backend — AI-Driven Cooling Digital Twin API Server.
+FastAPI Backend - AI-Driven Cooling Digital Twin API Server.
 
 Endpoints:
-  GET  /health               — liveness probe
-  GET  /metrics              — Prometheus scrape endpoint (text/plain)
-  GET  /api/v1/telemetry/... — telemetry REST routes
-  POST /api/v1/control/...   — control REST routes
-  WS   /ws/stream            — real-time telemetry WebSocket
+  GET  /health               - liveness probe
+  GET  /metrics              - Prometheus scrape endpoint (text/plain)
+  GET  /api/v1/telemetry/... - telemetry REST routes
+  POST /api/v1/control/...   - control REST routes
+  WS   /ws/stream            - real-time telemetry WebSocket
 
 Dual-mode: IoT Simulator starts automatically; AWS services are optional.
 """
@@ -36,7 +36,7 @@ from src.backend.metrics import generate_metrics_output
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ async def _validation_error_handler(_request: Request, exc: RequestValidationErr
     return JSONResponse(status_code=422, content={"detail": _json_safe(jsonable_encoder(exc.errors()))})
 
 
-# CORS — local dashboard origins by default; set CORS_ORIGINS (comma-separated, or *) to change
+# CORS - local dashboard origins by default; set CORS_ORIGINS (comma-separated, or *) to change
 _DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
 origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()]
 app.add_middleware(
@@ -157,4 +157,4 @@ async def metrics() -> Response:
 
 @app.get("/", tags=["Health"], include_in_schema=False)
 async def root() -> JSONResponse:
-    return JSONResponse({"message": "Digital Twin API v2.0 — visit /docs for API reference."})
+    return JSONResponse({"message": "Digital Twin API v2.0 - visit /docs for API reference."})

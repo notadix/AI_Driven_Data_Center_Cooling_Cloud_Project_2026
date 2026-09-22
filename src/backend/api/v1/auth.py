@@ -1,7 +1,7 @@
 """
-Auth REST API — /api/v1/auth
+Auth REST API - /api/v1/auth
 
-  GET /whoami — verifies a Cognito ID token (Authorization: Bearer <token>) and returns the
+  GET /whoami - verifies a Cognito ID token (Authorization: Bearer <token>) and returns the
                 caller's username and Cognito groups. Additive only: no other route in this
                 app requires a token, so this cannot lock anyone out of the dashboard.
 

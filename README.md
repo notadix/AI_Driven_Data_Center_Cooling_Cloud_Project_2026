@@ -8,9 +8,9 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## Team Members & Cloud Architecture Roles
-- **Aditya Roy** (24BIT0328) — *Cloud AI & MLOps Architect | Digital Twin Physics Lead*
-- **Snigda Chandanala** (24BIT0330) — *Cloud IoT & Telemetry Platform Architect | Backend Lead*
-- **Govind Innani** (24BIT0157) — *Cloud Full-Stack & Green Cloud Sustainability Architect | UI/UX Lead*
+- **Aditya Roy** (24BIT0328) - *Cloud AI & MLOps Architect | Digital Twin Physics Lead*
+- **Snigda Chandanala** (24BIT0330) - *Cloud IoT & Telemetry Platform Architect | Backend Lead*
+- **Govind Innani** (24BIT0157) - *Cloud Full-Stack & Green Cloud Sustainability Architect | UI/UX Lead*
 
 ---
 
@@ -30,9 +30,9 @@ and what's deliberately not built). Frontier2023's ambient temperature, rack inl
 | IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence; gradient boosting (9.1%) and ridge (9.7%) are worse | modest gain |
 | Control-loop latency | decision 0.59 ms median per CRAC; 3 s worst-case reaction set by the telemetry/control periods | yes |
 | Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical upper bound is -14.4%, so the agent captures 98%; the 15–30% target is not attainable in this twin | no (bounded by the model) |
-| Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | — |
+| Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | - |
 | Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) | small |
-| Water | Safe-PPO -4.2% to -7.3% vs baseline | — |
+| Water | Safe-PPO -4.2% to -7.3% vs baseline | - |
 | Safety layer ablation | shield: SLA violations 20% -> 0%; online calibrator: 42-55% -> 0-0.3% under plant drift; shield also holds (0%) on a flow-coupled plant. A fixed rule under the shield saves as much as the RL agent, so the evidenced value is the safety layer, not the RL (docs/RESULTS.md §3b) | yes |
 | Transfer across facilities | zero-shot -9.5% with 0 violations | yes |
 | Fault tolerance | sensor-fault guard + online calibration restore safety under drift | yes |

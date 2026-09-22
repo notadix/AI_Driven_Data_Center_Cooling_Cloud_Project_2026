@@ -1,12 +1,12 @@
 # =============================================================================
-# docker-compose.yml — AI-Driven Cooling Digital Twin Full Stack
+# docker-compose.yml - AI-Driven Cooling Digital Twin Full Stack
 # =============================================================================
 # Services:
-#   backend    — FastAPI backend + IoT Simulator
-#   postgres   — PostgreSQL 15 (relational store for RL episodes, drift events)
-#   localstack — AWS service emulation (IoT Core, Timestream, S3, SNS, SFN)
-#   grafana    — Dashboards for PUE, ASHRAE compliance, RL metrics
-#   prometheus — Metrics scraping for backend observability
+#   backend    - FastAPI backend + IoT Simulator
+#   postgres   - PostgreSQL 15 (relational store for RL episodes, drift events)
+#   localstack - AWS service emulation (IoT Core, Timestream, S3, SNS, SFN)
+#   grafana    - Dashboards for PUE, ASHRAE compliance, RL metrics
+#   prometheus - Metrics scraping for backend observability
 # =============================================================================
 
 networks:
@@ -129,7 +129,7 @@ services:
       start_period: 20s
 
   # ---------------------------------------------------------------------------
-  # LocalStack — AWS service emulation
+  # LocalStack - AWS service emulation
   # ---------------------------------------------------------------------------
   localstack:
     image: localstack/localstack:3.3
@@ -156,7 +156,7 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
-  # Prometheus — metrics scraping
+  # Prometheus - metrics scraping
   # ---------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus:v2.51.0
@@ -178,7 +178,7 @@ services:
       - backend
 
   # ---------------------------------------------------------------------------
-  # Grafana — dashboards
+  # Grafana - dashboards
   # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:10.4.0

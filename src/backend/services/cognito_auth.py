@@ -1,5 +1,5 @@
 """
-Cognito ID token verification — real AWS Cognito, no LocalStack path (Cognito isn't in
+Cognito ID token verification - real AWS Cognito, no LocalStack path (Cognito isn't in
 LocalStack Community's supported service list, so this only exercises against real AWS).
 
 This is additive: nothing in the app requires a valid token today. It backs one endpoint,
@@ -7,10 +7,10 @@ GET /api/v1/auth/whoami, which returns the caller's identity and Cognito groups 
 send a valid ID token, and 401 otherwise. No existing route's behaviour changes.
 
 Environment variables:
-  COGNITO_USER_POOL_ID  — e.g. "us-east-1_TD4vuAtL1". If unset, whoami always returns 501
+  COGNITO_USER_POOL_ID  - e.g. "us-east-1_TD4vuAtL1". If unset, whoami always returns 501
                            (auth not configured) rather than pretending to verify anything.
-  COGNITO_APP_CLIENT_ID — the app client ID token audience to check against.
-  AWS_REGION             — default "us-east-1".
+  COGNITO_APP_CLIENT_ID - the app client ID token audience to check against.
+  AWS_REGION             - default "us-east-1".
 """
 
 import logging
@@ -40,7 +40,7 @@ if USER_POOL_ID:
 
 
 class AuthNotConfigured(Exception):
-    """Raised when COGNITO_USER_POOL_ID is unset — the deployment simply doesn't have auth wired."""
+    """Raised when COGNITO_USER_POOL_ID is unset - the deployment simply doesn't have auth wired."""
 
 
 class InvalidToken(Exception):
