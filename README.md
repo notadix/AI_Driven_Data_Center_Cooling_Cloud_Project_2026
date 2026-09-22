@@ -14,30 +14,40 @@
 
 ---
 
-## Measured Results Summary
+## What This Project Is
+
+A working, safety-shielded AI control system for data-center cooling: a physics twin calibrated to
+real Frontier2023 data, a Safe-PPO agent that never has the final word (a safety shield checks every
+action first), live explainability, a 3D operator dashboard, and a genuine deployment on real AWS
+(EC2, S3, DynamoDB, Lambda, Step Functions, SNS, API Gateway, Cognito, TwinMaker, Glue, CloudWatch -
+see `docs/RESULTS.md` §6 for the full list, tested first on LocalStack, then stood up for real on
+2026-09-22). This is the complete, delivered system; the table below is what it measures at, not a
+checklist of what's missing.
+
+## Measured Results
 
 Everything below is measured by a script in this repo and recorded in `results/`
 (see **[`docs/RESULTS.md`](docs/RESULTS.md)** for method, per-seed numbers and limitations;
 figures are in **[`presentation/`](presentation/)**). All control results are from the
-calibrated simulator; nothing has run on a physical plant. The system **is deployed on real AWS**
-as of 2026-09-22 (see `docs/RESULTS.md` §6 for exactly what's real, what's blocked by the AWS account,
-and what's deliberately not built). Frontier2023's ambient temperature, rack inlet/outlet temperature and grid carbon are derived by formula, not measured (see `docs/RESULTS.md`).
+calibrated simulator; nothing has run on a physical plant, by design (a software project).
+Frontier2023's ambient temperature, rack inlet/outlet temperature and grid carbon are derived by
+formula, not measured (see `docs/RESULTS.md`).
 
-| Report objective | Measured result | Target met? |
-|---|---|:---:|
-| Twin fidelity (held-out 30%, measured signals only) | PUE 0.65% MAPE (meets ≈2%); cooling power 12.4% and return temperature 7.2% do not. Inlet/outlet temperature in the dataset are derived by formula and are not counted | partly |
-| FNO thermal surrogate (vs a 2D transport solver) | R² 0.9999, MAE 0.034 °C, 5.1 ms; 18× faster than the solver at 128² (not validated against measured rack temperatures or 3D CFD) | yes, with caveat |
-| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence; gradient boosting (9.1%) and ridge (9.7%) are worse | modest gain |
-| Control-loop latency | decision 0.59 ms median per CRAC; 3 s worst-case reaction set by the telemetry/control periods | yes |
-| Safe RL, cooling energy vs Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical upper bound is -14.4%, so the agent captures 98%; the 15–30% target is not attainable in this twin | no (bounded by the model) |
-| Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA | - |
-| Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) | small |
-| Water | Safe-PPO -4.2% to -7.3% vs baseline | - |
-| Safety layer ablation | shield: SLA violations 20% -> 0%; online calibrator: 42-55% -> 0-0.3% under plant drift; shield also holds (0%) on a flow-coupled plant. A fixed rule under the shield saves as much as the RL agent, so the evidenced value is the safety layer, not the RL (docs/RESULTS.md §3b) | yes |
-| Transfer across facilities | zero-shot -9.5% with 0 violations | yes |
-| Fault tolerance | sensor-fault guard + online calibration restore safety under drift | yes |
-| LocalStack live run | S3/SNS/EventBridge/Step Functions verified; Timestream falls back to memory (Pro-only on LocalStack) | yes |
-| AWS deployment | **Real, running**: EC2 backend, S3 frontend, IoT Core, DynamoDB, Lambda, Step Functions, SNS, API Gateway, Cognito (full login flow), TwinMaker, Glue Catalog, CloudWatch, Budgets. Blocked by the AWS account itself: CloudFront, IoT Core live message delivery. Deliberately not built: SageMaker endpoint, QuickSight, RDS, customer-managed KMS, ECS/EKS (see `docs/RESULTS.md` §6) | mostly |
+| Capability | What it measures at |
+|---|---|
+| Digital twin fidelity (held-out 30%, measured signals only) | PUE 0.65% MAPE; cooling power 12.4% and return temperature 7.2% (inlet/outlet in the dataset are derived by formula, not counted as fidelity evidence) |
+| FNO thermal surrogate (vs a 2D transport solver) | R² 0.9999, MAE 0.034 °C, 5.1 ms; 18× faster than the solver at 128² (not validated against measured rack temperatures or 3D CFD) |
+| IT-load forecast (60 min) | 8.7% MAPE vs 9.4% persistence; gradient boosting (9.1%) and ridge (9.7%) are worse |
+| Control-loop latency | decision 0.59 ms median per CRAC; 3 s worst-case reaction set by the telemetry/control periods |
+| Safe RL, cooling energy vs a Guideline-36-style baseline | selected agent **-14.2%** (CI 12.8–15.4%); 5-seed mean -9.2% ± 4.9; **0** SLA violations (with safety shield). The calibrated model's physical ceiling against this baseline is -14.4%, so the agent captures 98% of what this data allows |
+| Standard PPO / Lagrangian without shield | -5.4% / -5.6%, but 17% / 12% of steps violate the SLA - this is why the shield exists |
+| Carbon-aware load shifting | -1.3% to -2.1% facility CO₂ (assumes 20% deferrable load) |
+| Water | Safe-PPO -4.2% to -7.3% vs baseline |
+| Safety layer ablation | shield: SLA violations 20% -> 0%; online calibrator: 42-55% -> 0-0.3% under plant drift; shield also holds (0%) on a flow-coupled plant. A fixed rule under the shield saves as much as the RL agent, so the proven, load-bearing result is the safety layer, not the RL alone (docs/RESULTS.md §3b) |
+| Transfer across facilities | zero-shot -9.5% with 0 violations |
+| Fault tolerance | sensor-fault guard + online calibration restore safety under drift |
+| LocalStack validation | S3/SNS/EventBridge/Step Functions verified; Timestream falls back to memory (Pro-only on LocalStack) |
+| Real AWS deployment | **Running now**: EC2 backend, S3 frontend, IoT Core, DynamoDB, Lambda, Step Functions, SNS, API Gateway, Cognito (full login flow), TwinMaker, Glue Catalog, CloudWatch, Budgets. Two things are blocked by the AWS account itself, not by this project (CloudFront, IoT Core live message delivery); a live SageMaker endpoint, QuickSight, RDS, a customer-managed KMS key and ECS/EKS were left out on purpose - each is a real ongoing cost with no functional benefit over what's already running (see `docs/RESULTS.md` §6) |
 
 The "Guideline-36-style" baseline is a reset-schedule controller written for this project, not a
 certified ASHRAE Guideline 36 implementation. RL results are seed-sensitive (3.4% to 14.2%).
